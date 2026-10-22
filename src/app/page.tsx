@@ -47,6 +47,9 @@ type ChatMessage = {
 
 type Page = "overview" | "chat" | "tickets" | "knowledge";
 
+type GuideStep = { title: string; body: string };
+type Guide = { category: string; title: string; intro: string; steps: GuideStep[]; escalation: string };
+
 const priorities: PriorityLevel[] = [
   "Critical",
   "High",
@@ -70,6 +73,84 @@ const navItems: {
   { id: "tickets", icon: "▤", label: "Quản lý ticket" },
   { id: "knowledge", icon: "▧", label: "Kho kiến thức" },
 ];
+
+const guides: Record<string, Guide> = {
+  wifi: {
+    category: "Mạng & kết nối",
+    title: "Khắc phục sự cố Wi-Fi",
+    intro: "Làm lần lượt các bước dưới đây để tìm nguyên nhân mất hoặc chập chờn kết nối.",
+    steps: [
+      { title: "Kiểm tra phạm vi ảnh hưởng", body: "Thử mở một trang web khác và kiểm tra thiết bị khác có vào mạng được không. Nếu chỉ một thiết bị lỗi, tiếp tục các bước bên dưới; nếu nhiều người cùng lỗi, báo IT." },
+      { title: "Kiểm tra Wi-Fi trên máy", body: "Tắt chế độ máy bay, bật Wi-Fi và xác nhận bạn đang kết nối đúng mạng. Tắt rồi bật lại Wi-Fi, sau đó thử kết nối lại." },
+      { title: "Ngắt và kết nối lại mạng", body: "Chọn mạng đang dùng, ngắt kết nối rồi kết nối lại. Chỉ chọn “Quên mạng” nếu bạn biết mật khẩu hoặc có thể xin lại mật khẩu từ IT." },
+      { title: "Khởi động lại thiết bị", body: "Lưu công việc rồi khởi động lại máy tính. Nếu đang ở nhà, có thể khởi động lại router; tại văn phòng, không tự reset thiết bị mạng." },
+      { title: "Ghi lại thông tin lỗi", body: "Ghi tên mạng, thời điểm xảy ra, vị trí và thông báo lỗi. Thông tin này giúp IT kiểm tra nhanh hơn." },
+    ],
+    escalation: "Nếu nhiều thiết bị cùng mất mạng, mạng văn phòng biến mất hoặc lỗi vẫn còn sau khi khởi động lại, hãy tạo ticket cho IT.",
+  },
+  account: {
+    category: "Tài khoản",
+    title: "Đăng nhập & mật khẩu",
+    intro: "Kiểm tra thông tin đăng nhập và khôi phục quyền truy cập qua kênh chính thức.",
+    steps: [
+      { title: "Kiểm tra tài khoản", body: "Xác nhận bạn đang dùng đúng email/tên đăng nhập của cơ quan. Kiểm tra ngôn ngữ bàn phím, Caps Lock và khoảng trắng thừa." },
+      { title: "Thử đăng nhập lại một lần", body: "Nhập lại mật khẩu cẩn thận. Tránh thử liên tục vì tài khoản có thể bị khóa tạm thời." },
+      { title: "Dùng chức năng khôi phục chính thức", body: "Chọn “Quên mật khẩu” trên trang đăng nhập của dịch vụ hoặc làm theo quy trình nội bộ. Chỉ mở liên kết khôi phục từ trang chính thức." },
+      { title: "Liên hệ IT nếu tài khoản bị khóa", body: "Cung cấp tên dịch vụ và ảnh/chữ của thông báo lỗi. Không gửi mật khẩu, mã OTP hay mã khôi phục cho bất kỳ ai." },
+    ],
+    escalation: "Nếu nhận được yêu cầu đổi mật khẩu bất ngờ, nghi tài khoản bị chiếm quyền hoặc không truy cập được email khôi phục, báo IT ngay.",
+  },
+  performance: {
+    category: "Hiệu năng",
+    title: "Máy tính chạy chậm",
+    intro: "Thử các kiểm tra an toàn trước khi đóng ứng dụng hoặc thay đổi cấu hình máy.",
+    steps: [
+      { title: "Lưu công việc và khởi động lại", body: "Lưu tài liệu đang mở, đóng ứng dụng không sử dụng rồi khởi động lại máy để giải phóng tài nguyên." },
+      { title: "Kiểm tra ứng dụng đang dùng nhiều tài nguyên", body: "Trên Windows, nhấn Ctrl + Shift + Esc để mở Task Manager. Xem ứng dụng nào dùng CPU hoặc bộ nhớ cao; chỉ đóng ứng dụng bạn nhận biết và không còn cần dùng." },
+      { title: "Kiểm tra dung lượng ổ đĩa", body: "Mở Settings → System → Storage để xem dung lượng còn trống. Xóa các tệp cá nhân không cần thiết; không xóa thư mục hệ thống hoặc dữ liệu công việc." },
+      { title: "Cập nhật và quét bảo mật", body: "Cài bản cập nhật theo quy định của công ty và chạy công cụ bảo mật được IT phê duyệt. Không tải phần mềm “tăng tốc” từ nguồn lạ." },
+    ],
+    escalation: "Nếu máy nóng bất thường, tự tắt, phát tiếng lạ hoặc vẫn chậm sau khi khởi động lại, tạo ticket và ghi rõ ứng dụng, thời điểm xảy ra.",
+  },
+  software: {
+    category: "Phần mềm",
+    title: "Cài đặt phần mềm",
+    intro: "Cài ứng dụng từ nguồn được công ty phê duyệt để tránh lỗi tương thích và rủi ro bảo mật.",
+    steps: [
+      { title: "Xác nhận ứng dụng được phép", body: "Kiểm tra ứng dụng có trong Company Portal/kho phần mềm nội bộ hoặc hỏi IT trước khi cài." },
+      { title: "Kiểm tra yêu cầu hệ thống", body: "Xác nhận phiên bản Windows/macOS, dung lượng trống và quyền cần thiết. Lưu công việc trước khi cài đặt." },
+      { title: "Tải bộ cài từ nguồn chính thức", body: "Chỉ dùng liên kết của nhà phát hành hoặc cổng nội bộ. Không mở tệp đính kèm hay trình cài đặt từ nguồn không rõ." },
+      { title: "Cài đặt và khởi động lại ứng dụng", body: "Làm theo hướng dẫn, không cấp quyền quản trị nếu không được phê duyệt. Sau khi cài, mở ứng dụng và ghi lại nguyên văn lỗi nếu có." },
+    ],
+    escalation: "Nếu cần quyền quản trị, giấy phép hoặc ứng dụng báo lỗi bảo mật, gửi tên ứng dụng, phiên bản và ảnh thông báo cho IT.",
+  },
+  hardware: {
+    category: "Phần cứng",
+    title: "Thiết bị ngoại vi",
+    intro: "Kiểm tra nguồn, dây kết nối và lựa chọn thiết bị trước khi cài lại trình điều khiển.",
+    steps: [
+      { title: "Kiểm tra nguồn và dây cáp", body: "Đảm bảo thiết bị đã bật, dây nguồn và dây USB được cắm chắc. Thử cổng USB khác nếu phù hợp; không giật mạnh đầu nối." },
+      { title: "Kiểm tra thiết bị được chọn", body: "Với máy in, xác nhận đã chọn đúng máy in và máy không ở trạng thái Offline. Với màn hình, kiểm tra đúng nguồn vào (HDMI/DisplayPort)." },
+      { title: "Khởi động lại thiết bị", body: "Tắt thiết bị ngoại vi, chờ vài giây rồi bật lại. Lưu công việc và khởi động lại máy tính nếu thiết bị vẫn chưa nhận." },
+      { title: "Thử trên cổng hoặc máy khác", body: "Nếu được phép, thử cáp/cổng khác hoặc thiết bị trên máy khác để xác định lỗi nằm ở đâu. Không tự tháo thiết bị còn bảo hành." },
+      { title: "Cài trình điều khiển đúng nguồn", body: "Chỉ cài driver từ Company Portal hoặc hướng dẫn của IT/nhà sản xuất. Tránh các trang tải driver không rõ nguồn." },
+    ],
+    escalation: "Nếu có mùi khét, tia lửa, pin phồng hoặc thiết bị quá nóng, ngắt nguồn nếu làm được an toàn và báo IT ngay; không tiếp tục sử dụng.",
+  },
+  security: {
+    category: "Bảo mật",
+    title: "An toàn tài khoản",
+    intro: "Nếu nghi ngờ email, liên kết hoặc tài khoản có vấn đề, ưu tiên bảo vệ tài khoản và báo IT sớm.",
+    steps: [
+      { title: "Nhận biết dấu hiệu đáng ngờ", body: "Cẩn trọng với người gửi lạ, lời thúc giục gấp, liên kết có địa chỉ khác thường, tệp bất ngờ hoặc yêu cầu mật khẩu/OTP." },
+      { title: "Không tương tác với nội dung nghi ngờ", body: "Không nhấn liên kết, mở tệp, trả lời hoặc chuyển tiếp cho đồng nghiệp. Dùng nút Report phishing nếu hệ thống email có chức năng này." },
+      { title: "Báo cáo IT", body: "Gửi báo cáo qua kênh nội bộ được chỉ định. Giữ lại email/tin nhắn để IT kiểm tra; không xóa bằng chứng nếu IT chưa hướng dẫn." },
+      { title: "Nếu đã nhập thông tin", body: "Báo IT ngay. Từ thiết bị đáng tin cậy, đổi mật khẩu qua trang chính thức và làm theo hướng dẫn bảo vệ tài khoản. Không gửi OTP hoặc mật khẩu mới cho người hỗ trợ." },
+      { title: "Nếu thiết bị có dấu hiệu bị xâm nhập", body: "Ngừng nhập thông tin nhạy cảm và liên hệ IT khẩn cấp. Làm theo hướng dẫn của IT trước khi tắt máy hoặc ngắt mạng để họ có thể điều tra." },
+    ],
+    escalation: "Nếu đã mở tệp lạ, nhập mật khẩu/OTP vào trang đáng ngờ hoặc thấy đăng nhập không phải của bạn, liên hệ IT ngay qua kênh khẩn cấp.",
+  },
+};
 
 function mapApiTicket(raw: ApiTicket): Ticket {
   const priority = priorities.includes(raw.priority as PriorityLevel)
@@ -162,6 +243,7 @@ export default function Home() {
 
   const [toast, setToast] = useState("");
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+  const [selectedGuide, setSelectedGuide] = useState<Guide | null>(null);
   const [updatingTicketId, setUpdatingTicketId] = useState("");
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1155,7 +1237,7 @@ export default function Home() {
 
               <div className="section-title">
                 <h2>Danh mục hướng dẫn</h2>
-                <span>03 danh mục chính</span>
+                <span>06 hướng dẫn thực tế</span>
               </div>
 
               <div className="knowledge-grid large-knowledge">
@@ -1165,7 +1247,7 @@ export default function Home() {
                   title="Khắc phục sự cố Wi-Fi"
                   desc="Kiểm tra kết nối, DNS, router và cấu hình mạng."
                   color="blue"
-                  onClick={() => notify("Hướng dẫn Wi-Fi đang ở bản demo.")}
+                  onClick={() => setSelectedGuide(guides.wifi)}
                 />
 
                 <KnowledgeCard
@@ -1174,9 +1256,7 @@ export default function Home() {
                   title="Đăng nhập & mật khẩu"
                   desc="Khôi phục tài khoản và xử lý lỗi xác thực."
                   color="purple"
-                  onClick={() =>
-                    notify("Hướng dẫn tài khoản đang ở bản demo.")
-                  }
+                  onClick={() => setSelectedGuide(guides.account)}
                 />
 
                 <KnowledgeCard
@@ -1185,9 +1265,7 @@ export default function Home() {
                   title="Máy tính chạy chậm"
                   desc="Kiểm tra bộ nhớ, ứng dụng nền và dung lượng."
                   color="orange"
-                  onClick={() =>
-                    notify("Hướng dẫn hiệu năng đang ở bản demo.")
-                  }
+                  onClick={() => setSelectedGuide(guides.performance)}
                 />
 
                 <KnowledgeCard
@@ -1196,9 +1274,7 @@ export default function Home() {
                   title="Cài đặt phần mềm"
                   desc="Các bước cài đặt và xử lý lỗi ứng dụng cơ bản."
                   color="green"
-                  onClick={() =>
-                    notify("Hướng dẫn phần mềm đang ở bản demo.")
-                  }
+                  onClick={() => setSelectedGuide(guides.software)}
                 />
 
                 <KnowledgeCard
@@ -1207,9 +1283,7 @@ export default function Home() {
                   title="Thiết bị ngoại vi"
                   desc="Xử lý sự cố máy in, bàn phím và màn hình."
                   color="orange"
-                  onClick={() =>
-                    notify("Hướng dẫn phần cứng đang ở bản demo.")
-                  }
+                  onClick={() => setSelectedGuide(guides.hardware)}
                 />
 
                 <KnowledgeCard
@@ -1218,9 +1292,7 @@ export default function Home() {
                   title="An toàn tài khoản"
                   desc="Nhận biết dấu hiệu đáng ngờ và báo cáo sự cố."
                   color="purple"
-                  onClick={() =>
-                    notify("Hướng dẫn bảo mật đang ở bản demo.")
-                  }
+                  onClick={() => setSelectedGuide(guides.security)}
                 />
               </div>
             </>
@@ -1234,6 +1306,37 @@ export default function Home() {
           </footer>
         </div>
       </section>
+
+      {selectedGuide && (
+        <div className="modal-backdrop" onClick={() => setSelectedGuide(null)}>
+          <article
+            className="ticket-modal guide-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="guide-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button type="button" className="modal-close" aria-label="Đóng hướng dẫn" onClick={() => setSelectedGuide(null)}>×</button>
+            <div className="modal-icon">▧</div>
+            <span className="guide-category">{selectedGuide.category}</span>
+            <h2 id="guide-title">{selectedGuide.title}</h2>
+            <p>{selectedGuide.intro}</p>
+            <ol className="guide-steps">
+              {selectedGuide.steps.map((step) => (
+                <li key={step.title}>
+                  <strong>{step.title}</strong>
+                  <p>{step.body}</p>
+                </li>
+              ))}
+            </ol>
+            <div className="guide-escalation"><strong>Khi nào cần báo IT</strong><p>{selectedGuide.escalation}</p></div>
+            <div className="modal-actions">
+              <button type="button" className="secondary-button" onClick={() => setSelectedGuide(null)}>Đóng</button>
+              <button type="button" className="primary-button" onClick={() => { setSelectedGuide(null); setShowNewTicket(true); }}>Tạo ticket hỗ trợ →</button>
+            </div>
+          </article>
+        </div>
+      )}
 
       {/* Modal tạo ticket */}
       {showNewTicket && (
@@ -1530,3 +1633,5 @@ function KnowledgeCard({
     </button>
   );
 }
+
+

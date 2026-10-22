@@ -135,3 +135,5 @@
   white-space: pre-wrap;
   font: inherit;
 }
+
+.guide-modal{width:min(100%,680px);max-height:min(88vh,850px);overflow:auto}.guide-category{display:block;margin-top:16px;color:var(--purple);font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase}.guide-modal h2{margin-top:8px}.guide-steps{display:grid;gap:14px;padding-left:23px;margin:0 0 18px}.guide-steps li{padding-left:4px;color:var(--purple)}.guide-steps li strong{display:block;color:var(--ink);font-size:12px}.guide-steps li p,.guide-escalation p{margin:5px 0 0;color:#777a92;font-size:11px;line-height:1.7}.guide-escalation{padding:13px;background:#f7f5ff;border-radius:9px}.guide-escalation strong{font-size:11px;color:#5747c8}.guide-modal .modal-actions{position:sticky;bottom:-28px;padding:14px 0 0;background:#fff}@media(max-width:560px){.guide-modal{max-height:90vh}.guide-modal .modal-actions{bottom:-23px;flex-wrap:wrap}.guide-modal .modal-actions button{flex:1;justify-content:center}}
