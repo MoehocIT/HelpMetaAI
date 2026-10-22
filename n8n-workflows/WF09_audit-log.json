@@ -1,0 +1,90 @@
+{
+  "name": "WF09 - Audit Log",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "audit-log",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "b2d04e12-20ac-4167-a710-8d3af9cfba20",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "9734a5ee-9916-48fa-8b64-161b239f0481"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...$json,auditLog:{event:'ticket.processed',ticketId:$json.ticketId,processedAt:new Date().toISOString(),workflowTrace:[...($json.workflowTrace??[]),'WF09']},processingComplete:true}}];"
+      },
+      "id": "4dd06f9c-87e3-4117-b299-f0462aa6752a",
+      "name": "Process Ticket",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "c4af94c6-4c6b-4079-8557-9a439552856f",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        500,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Process Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Ticket": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "dbb71f02-3688-4720-bd15-bbc01d6a0de0",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [
+    {
+      "name": "HelpDeskAI"
+    }
+  ]
+}

@@ -1,0 +1,122 @@
+{
+  "name": "WF06 - Support Response",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "support-response",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "6aabc8b7-0008-4315-b3e7-55dccc3c69cb",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "8abe9a2e-d5af-47a0-b68b-dca1cc365a5f"
+    },
+    {
+      "parameters": {
+        "jsCode": "const category=$json.category??'General';\nconst tips={Network:'Check whether other devices can connect, reconnect to the network, and capture any error message.',Hardware:'Check power and cable connections, restart the device if safe, and note any indicator lights or error messages.',Software:'Restart the application, record the exact error, and note any recent updates or changes.',General:'Please provide the exact error message, when the issue started, and the steps already attempted.'};\nreturn [{json:{...$json,suggestedResponse:`We received your ticket ${$json.ticketId}. The support team will review it. Suggested first step: ${tips[category]??tips.General}`,workflowTrace:[...($json.workflowTrace??[]),'WF06']}}];"
+      },
+      "id": "5f7eb9c1-b932-4866-aa4e-2aa900cd5144",
+      "name": "Process Ticket",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/high-priority-alert",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "c13f9425-95d3-4088-857f-264487143cd7",
+      "name": "Call Next Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "08e3de2e-094e-4b42-84e6-1edcc3946a0f",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        760,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Process Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Ticket": {
+      "main": [
+        [
+          {
+            "node": "Call Next Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Next Workflow": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "aec1a998-58d6-4c91-b856-d3a9a63f3565",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [
+    {
+      "name": "HelpDeskAI"
+    }
+  ]
+}

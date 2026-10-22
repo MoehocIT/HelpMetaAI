@@ -1,0 +1,122 @@
+{
+  "name": "WF03 - Priority Assessment",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "priority-assessment",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "b65df801-dee6-4209-a47e-00dda1244723",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "6483cdb2-edbd-4ac3-9412-16e3542c77eb"
+    },
+    {
+      "parameters": {
+        "jsCode": "const t = `${$json.title} ${$json.description}`.toLowerCase();\nlet priority='Medium';\nif (/urgent|critical|production down|all users|security breach|data loss|cannot work|outage/.test(t)) priority='High';\nelse if (/when possible|minor|question|how to|request information/.test(t)) priority='Low';\nreturn [{json:{...$json,priority,workflowTrace:[...($json.workflowTrace??[]),'WF03']}}];"
+      },
+      "id": "4b5368bc-0acb-4048-9090-04b44750e1b1",
+      "name": "Process Ticket",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/team-assignment",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "f4c8d71f-8d3b-46f6-a8d4-897dfeaa73e0",
+      "name": "Call Next Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "16cfe1ae-a9d9-4891-bfa7-8a29a36dc46f",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        760,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Process Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Ticket": {
+      "main": [
+        [
+          {
+            "node": "Call Next Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Next Workflow": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "35a60fd9-34a9-4f74-baa8-b4b9ac34756e",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [
+    {
+      "name": "HelpDeskAI"
+    }
+  ]
+}
