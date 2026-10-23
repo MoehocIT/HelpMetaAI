@@ -29,6 +29,27 @@ npm run dev
 ```
 Mở http://localhost:3000
 
+## Đăng ký và đăng nhập
+
+- `/register`: tạo tài khoản bằng họ tên, email, mật khẩu và xác nhận mật khẩu. Đăng ký thành công sẽ đăng nhập và mở trang chính.
+- `/login`: đăng nhập bằng email và mật khẩu. Chưa đăng nhập sẽ được chuyển về trang này khi mở `/`.
+- Nút đăng xuất nằm cạnh thông tin tài khoản trên thanh bên. Tên hiển thị được lấy từ tài khoản MongoDB.
+- Mật khẩu dài 8–128 ký tự, được băm bằng scrypt và salt riêng. Phiên đăng nhập có hạn 7 ngày; cookie dùng HttpOnly, SameSite=Lax và Secure ở production. Database chỉ lưu bản băm của token phiên; đăng xuất thu hồi phiên trên server.
+- Các endpoint `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout` và `GET /api/auth/me` xử lý tài khoản. Đăng nhập/đăng ký giới hạn 20 yêu cầu mỗi email trong mỗi khoảng 15 phút.
+- API ticket và chat yêu cầu cookie phiên hợp lệ. Hiện các tài khoản cùng dùng không gian ticket chung; chưa phân quyền theo vai trò, xác minh email hoặc khôi phục mật khẩu. n8n gọi API nội bộ cũng cần xác thực; chưa có cơ chế service token riêng.
+
+MongoDB phải hoạt động và `MONGODB_URI` phải được thiết lập trước khi khởi động. Có thể tạo `.env.local` với URI local ở phần cài đặt phía trên nếu chưa có file mẫu. Dùng HTTPS khi triển khai production để trình duyệt gửi cookie Secure.
+
+Kiểm tra sau khi đã chạy ứng dụng và MongoDB local:
+
+```bash
+npm run lint
+npm run build
+node --env-file=.env.local --test tests/auth.test.mjs
+```
+
+Nếu đã cung cấp `MONGODB_URI` qua biến môi trường, có thể bỏ `--env-file=.env.local`. Bộ kiểm tra tích hợp dùng địa chỉ local (mặc định cổng 3000), tạo tài khoản ngẫu nhiên và tự dọn dữ liệu của lần kiểm tra; dùng `AUTH_TEST_BASE_URL` khi chạy ứng dụng ở cổng khác.
+
 ## 3. Kết nối n8n (tùy chọn)
 1. Mở n8n.
 2. Import các file JSON trong `n8n-workflows/` (Import from File).

@@ -6,11 +6,14 @@ if (!MONGODB_URI) {
   throw new Error('Vui lòng định nghĩa biến MONGODB_URI trong file .env.local');
 }
 
-let cached = (global as any).mongoose;
+const globalWithMongoose = globalThis as typeof globalThis & {
+  mongoose?: {
+    conn: typeof mongoose | null;
+    promise: Promise<typeof mongoose> | null;
+  };
+};
 
-if (!cached) {
-  cached = (global as any).mongoose = { conn: null, promise: null };
-}
+const cached = globalWithMongoose.mongoose ??= { conn: null, promise: null };
 
 async function connectDB() {
   if (cached.conn) {
@@ -23,7 +26,12 @@ async function connectDB() {
       return mongoose;
     });
   }
-  cached.conn = await cached.promise;
+  try {
+    cached.conn = await cached.promise;
+  } catch (error) {
+    cached.promise = null;
+    throw error;
+  }
   return cached.conn;
 }
 

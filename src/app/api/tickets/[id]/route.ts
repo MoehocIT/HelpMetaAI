@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import connectDB from "../../../../lib/mongodb";
 import Ticket from "../../../../models/Ticket";
-
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+import { authorizeRequest } from "../../../../lib/auth";
 
 // Những trạng thái hợp lệ của ticket
 const ALLOWED_STATUSES = ["Open", "In Progress", "Resolved"] as const;
@@ -15,6 +13,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const denied = await authorizeRequest(request);
+    if (denied) return denied;
     // 1. Kết nối MongoDB
     await connectDB();
 

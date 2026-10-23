@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authorizeRequest } from "../../../lib/auth";
 
 const SYSTEM_PROMPT = `Bạn là HelpMate AI, trợ lý IT nội bộ, thân thiện và thực tế.
 - Trả lời bằng tiếng Việt, dễ hiểu, theo từng bước khi hướng dẫn xử lý.
@@ -9,6 +10,8 @@ const SYSTEM_PROMPT = `Bạn là HelpMate AI, trợ lý IT nội bộ, thân thi
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
 export async function POST(request: NextRequest) {
+  const denied = await authorizeRequest(request);
+  if (denied) return denied;
   let body: unknown;
 
   try {

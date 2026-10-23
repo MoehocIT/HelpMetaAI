@@ -1,10 +1,11 @@
 
 import { NextRequest, NextResponse } from "next/server";
-
-export const runtime = "nodejs";
+import { authorizeRequest } from "../../../../../lib/auth";
 
 export async function POST(request: NextRequest) {
   try {
+    const denied = await authorizeRequest(request);
+    if (denied) return denied;
     const body = await request.json();
 
     const title = String(body.title ?? "").trim();

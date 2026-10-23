@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import connectDB from '../../../lib/mongodb';
 import Ticket from '../../../models/Ticket';
+import { authorizeRequest } from '../../../lib/auth';
 
 
 type Classification = {
@@ -154,6 +155,8 @@ Nếu chưa đủ thông tin, hãy nêu điều cần kiểm tra thêm.
 
 export async function GET() {
   try {
+    const denied = await authorizeRequest();
+    if (denied) return denied;
     await connectDB();
 
     const tickets = await Ticket.find({}).sort({ createdAt: -1 });
@@ -175,6 +178,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const denied = await authorizeRequest(request);
+    if (denied) return denied;
     const body = await request.json();
 
     const title =
