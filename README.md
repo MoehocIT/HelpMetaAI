@@ -50,6 +50,15 @@ node --env-file=.env.local --test tests/auth.test.mjs
 
 Nếu đã cung cấp `MONGODB_URI` qua biến môi trường, có thể bỏ `--env-file=.env.local`. Bộ kiểm tra tích hợp dùng địa chỉ local (mặc định cổng 3000), tạo tài khoản ngẫu nhiên và tự dọn dữ liệu của lần kiểm tra; dùng `AUTH_TEST_BASE_URL` khi chạy ứng dụng ở cổng khác.
 
+Kiểm tra lỗi prerender trên trình duyệt khi đã có MongoDB:
+
+```bash
+npx playwright install chromium
+npm run test:auth:browser
+```
+
+Kiểm tra này dùng chế độ development, tự khởi động Next.js nếu cần và xác nhận trang đã đăng nhập không có lỗi console hoặc bảng lỗi Next.js khi mở trang hay tải lại. Nếu máy đã có Chromium, có thể đặt `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` để dùng trình duyệt đó.
+
 ## 3. Kết nối n8n (tùy chọn)
 1. Mở n8n.
 2. Import các file JSON trong `n8n-workflows/` (Import from File).

@@ -1,5 +1,6 @@
 import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
+import { io } from "next/cache";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import connectDB from "./mongodb";
@@ -50,6 +51,9 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   const token = (await cookies()).get(COOKIE_NAME)?.value;
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return null;
 
+  // Session expiry needs a fresh clock value, including when Next.js validates
+  // authenticated runtime prerenders with cookies already available.
+  await io();
   await connectDB();
   const session = await AuthSession.findOne({
     tokenHash: digest(token),
