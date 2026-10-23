@@ -1,0 +1,122 @@
+{
+  "name": "WF01 - Ticket Intake",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ticket-intake",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "e35122c5-4f7c-4201-84ac-3b066644a500",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "99c2e3de-a952-4845-819c-35245f7341c1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body ?? $json;\nconst title = String(body.title ?? '').trim();\nconst description = String(body.description ?? '').trim();\nif (!title || !description) throw new Error('title and description are required');\nconst ticketId = String(body.ticketId ?? `TCK-${Date.now()}`);\nreturn [{json:{...body,ticketId,title,description,status:body.status ?? 'Open',createdAt:body.createdAt ?? new Date().toISOString(),source:'helpdeskai',workflowTrace:['WF01']}}];"
+      },
+      "id": "c61f6391-257c-4e09-bbfb-b78c6a916a87",
+      "name": "Process Ticket",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/ticket-classification",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "c8a35ce7-e35e-418d-9cb8-8fbb90ddadf4",
+      "name": "Call Next Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "2440f214-527b-4e09-8a82-350350ac46fc",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        760,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Process Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Ticket": {
+      "main": [
+        [
+          {
+            "node": "Call Next Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Next Workflow": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "4f599c61-9df9-4ac2-b8fd-2547de07d605",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [
+    {
+      "name": "HelpDeskAI"
+    }
+  ]
+}

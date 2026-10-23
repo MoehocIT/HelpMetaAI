@@ -1,0 +1,122 @@
+{
+  "name": "WF04 - Team Assignment",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "team-assignment",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "6b321719-a39b-4d98-8641-0b4706319911",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "ff0ef14b-37b3-45f4-9808-71e70edea8cc"
+    },
+    {
+      "parameters": {
+        "jsCode": "const teams={Network:'Network Support',Hardware:'Hardware Support',Software:'Software Support',General:'IT General'};\nreturn [{json:{...$json,assignedTeam:teams[$json.category]??'IT General',workflowTrace:[...($json.workflowTrace??[]),'WF04']}}];"
+      },
+      "id": "9d1b611e-ed22-4fea-9703-d4bca7782b73",
+      "name": "Process Ticket",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/duplicate-detection",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "5af2b849-60e2-415c-93c3-91612d4aa71f",
+      "name": "Call Next Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "afb47606-1616-4ad2-9b4a-2cdfeda129bd",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        760,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Process Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Ticket": {
+      "main": [
+        [
+          {
+            "node": "Call Next Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Next Workflow": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "75f704a2-796a-4516-acb6-6c5477bb7a68",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [
+    {
+      "name": "HelpDeskAI"
+    }
+  ]
+}

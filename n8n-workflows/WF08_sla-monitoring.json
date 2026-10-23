@@ -1,0 +1,122 @@
+{
+  "name": "WF08 - SLA Monitoring",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sla-monitoring",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "42a1e96e-d770-4806-a380-fb6ff5c2b5b9",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "285729cc-2f0e-4bd4-9319-d4d0a995ca5b"
+    },
+    {
+      "parameters": {
+        "jsCode": "const hours={High:4,Medium:24,Low:72};\nconst created=new Date($json.createdAt??Date.now());\nconst due=new Date(created.getTime()+(hours[$json.priority]??24)*3600000);\nreturn [{json:{...$json,sla:{targetHours:hours[$json.priority]??24,dueAt:due.toISOString(),breached:Date.now()>due.getTime()},workflowTrace:[...($json.workflowTrace??[]),'WF08']}}];"
+      },
+      "id": "46309679-bd00-4ce4-a63c-a3ddac41b35c",
+      "name": "Process Ticket",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/audit-log",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "410e9d8d-c9f9-4b74-9643-531f8314469b",
+      "name": "Call Next Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "b2aaab7d-1124-4aa6-a17b-4fa4e51a624a",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        760,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Process Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Ticket": {
+      "main": [
+        [
+          {
+            "node": "Call Next Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Next Workflow": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "2e903e1f-bffc-4316-8428-66d9e4550496",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [
+    {
+      "name": "HelpDeskAI"
+    }
+  ]
+}

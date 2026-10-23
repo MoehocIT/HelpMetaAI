@@ -1,0 +1,122 @@
+{
+  "name": "WF07 - High Priority Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "high-priority-alert",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "264a48da-7cc9-44c4-92d0-46d144a4f359",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "94aeafbf-460b-47e3-97eb-de4250279456"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{...$json,alert:{required:$json.priority==='High',sent:false,reason:$json.priority==='High'?'High-priority ticket requires notification configuration':'Priority does not require an alert'},workflowTrace:[...($json.workflowTrace??[]),'WF07']}}];"
+      },
+      "id": "a6cb7e71-2772-4c6d-abe6-0ce17156b725",
+      "name": "Process Ticket",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/sla-monitoring",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "f059a70d-ac86-4fda-b9b5-78abdf683a71",
+      "name": "Call Next Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "f5e553ce-0d57-4aa4-801f-009ef02887a3",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        760,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Process Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Ticket": {
+      "main": [
+        [
+          {
+            "node": "Call Next Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Next Workflow": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "versionId": "90966929-6219-47f0-9d9e-35a9dce4841b",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [
+    {
+      "name": "HelpDeskAI"
+    }
+  ]
+}
