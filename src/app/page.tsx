@@ -624,7 +624,7 @@ export default function Home() {
               <span>Nhân viên</span>
             </div>
             <button className="more-button" aria-label="Tùy chọn">
-              ···
+              ↪
             </button>
           </div>
         </div>

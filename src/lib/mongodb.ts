@@ -18,9 +18,14 @@ async function connectDB() {
   }
 
   if (!cached.promise) {
-    const opts = { bufferCommands: false };
-    cached.promise = mongoose.connect(MONGODB_URI!, opts).then((mongoose) => {
-      return mongoose;
+    const opts = {
+      bufferCommands: false,
+      dbName: process.env.MONGODB_DB || 'it_helpdesk',
+    };
+    cached.promise = mongoose.connect(MONGODB_URI!, opts).catch((error) => {
+      // Let a later request retry instead of reusing a permanently rejected promise.
+      cached.promise = null;
+      throw error;
     });
   }
   cached.conn = await cached.promise;
