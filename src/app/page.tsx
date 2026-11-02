@@ -214,6 +214,7 @@ function getErrorMessage(error: unknown, fallback: string) {
 
 export default function Home() {
   const [page, setPage] = useState<Page>("overview");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [ticketsLoading, setTicketsLoading] = useState(true);
@@ -221,6 +222,7 @@ export default function Home() {
 
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("All");
+  const [sortBy, setSortBy] = useState("recent");
 
   const [chatInput, setChatInput] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
@@ -284,6 +286,7 @@ export default function Home() {
       const response = await fetch("/api/tickets", {
         method: "GET",
         cache: "no-store",
+        signal: AbortSignal.timeout(12000),
       });
 
       const result = await readApiResponse(response);
@@ -307,12 +310,19 @@ export default function Home() {
         );
       });
     } catch (error) {
-      const message = getErrorMessage(
-        error,
-        "Không thể kết nối API ticket."
+      const message = getErrorMessage(error, "");
+      const normalized = message.toLowerCase();
+      setApiError(
+        normalized.includes("mongodb") ||
+          normalized.includes("mongo") ||
+          normalized.includes("econnrefused") ||
+          normalized.includes("timed out") ||
+          normalized.includes("timeout") ||
+          error instanceof DOMException && error.name === "TimeoutError" ||
+          normalized.includes("fetch failed")
+          ? "Chưa kết nối được cơ sở dữ liệu ticket. Hãy kiểm tra MongoDB và cấu hình MONGODB_URI, sau đó thử tải lại."
+          : "Không thể tải ticket từ máy chủ. Hãy thử lại; nếu lỗi tiếp diễn, kiểm tra nhật ký API."
       );
-
-      setApiError(message);
     } finally {
       setTicketsLoading(false);
     }
@@ -325,7 +335,7 @@ export default function Home() {
   const visibleTickets = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
-    return tickets.filter((ticket) => {
+    const filtered = tickets.filter((ticket) => {
       const searchText = [
         ticket.id,
         ticket.title,
@@ -343,7 +353,24 @@ export default function Home() {
 
       return matchesQuery && matchesFilter;
     });
-  }, [tickets, query, filter]);
+
+    const priorityRank: Record<PriorityLevel, number> = {
+      Critical: 0,
+      High: 1,
+      Medium: 2,
+      Low: 3,
+    };
+
+    return filtered.sort((a, b) => {
+      if (sortBy === "priority") {
+        return priorityRank[a.priority] - priorityRank[b.priority];
+      }
+      if (sortBy === "oldest") {
+        return (a.createdAt || "").localeCompare(b.createdAt || "");
+      }
+      return (b.createdAt || "").localeCompare(a.createdAt || "");
+    });
+  }, [tickets, query, filter, sortBy]);
 
   function openTicket(ticket: Ticket) {
     setSelectedTicket(ticket);
@@ -571,7 +598,15 @@ export default function Home() {
 
   return (
     <main className="app-shell">
-      <aside className="sidebar">
+      {mobileNavOpen && (
+        <button
+          type="button"
+          className="mobile-nav-backdrop"
+          aria-label="Đóng menu điều hướng"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      )}
+      <aside className={`sidebar ${mobileNavOpen ? "mobile-open" : ""}`}>
         <div className="brand">
           <div className="brand-mark">✳</div>
           <div>
@@ -589,7 +624,7 @@ export default function Home() {
             <button
               key={item.id}
               className={`nav-item ${page === item.id ? "active" : ""}`}
-              onClick={() => setPage(item.id)}
+              onClick={() => { setPage(item.id); setMobileNavOpen(false); }}
             >
               <span className="nav-icon">{item.icon}</span>
               <span>{item.label}</span>
@@ -632,6 +667,15 @@ export default function Home() {
 
       <section className="main-panel">
         <header className="topbar">
+          <button
+            type="button"
+            className="mobile-nav-toggle"
+            aria-label={mobileNavOpen ? "Đóng menu" : "Mở menu"}
+            aria-expanded={mobileNavOpen}
+            onClick={() => setMobileNavOpen((open) => !open)}
+          >
+            ☰
+          </button>
           <div className="breadcrumbs">
             <span>Workspace</span>
             <b>/</b>
@@ -641,8 +685,8 @@ export default function Home() {
           </div>
 
           <div className="top-actions">
-            <span className="system-status">
-              <i /> Hệ thống hoạt động
+            <span className={`system-status ${apiError ? "system-status-error" : ""}`}>
+              <i /> {apiError ? "Kết nối ticket gián đoạn" : "Hệ thống hoạt động"}
             </span>
 
             <button
@@ -681,12 +725,25 @@ export default function Home() {
               </div>
 
               {apiError && (
-                <div className="api-error">
-                  {apiError}
-                  <button onClick={() => void loadTickets()}>
-                    Thử lại
+                <div className="api-error" role="alert">
+                  <span className="api-error-icon">!</span>
+                  <div><strong>Không tải được ticket</strong><p>{apiError}</p></div>
+                  <button disabled={ticketsLoading} onClick={() => void loadTickets()}>
+                    {ticketsLoading ? "Đang thử…" : "Thử lại"}
                   </button>
                 </div>
+              )}
+
+              {!apiError && !ticketsLoading && tickets.some((ticket) => ticket.priority === "Critical" || ticket.priority === "High") && (
+                <button
+                  type="button"
+                  className="priority-alert"
+                  onClick={() => { setPage("tickets"); setFilter("All"); setSortBy("priority"); }}
+                >
+                  <span className="priority-alert-icon">!</span>
+                  <span><strong>Có ticket cần ưu tiên</strong><small>{tickets.filter((ticket) => ticket.priority === "Critical" || ticket.priority === "High").length} yêu cầu mức cao hoặc nghiêm trọng</small></span>
+                  <b>Xem ticket →</b>
+                </button>
               )}
 
               <div className="stats-grid">
@@ -786,7 +843,10 @@ export default function Home() {
                             </td>
                           </tr>
                         ) : (
-                          tickets.slice(0, 4).map((ticket) => (
+                          [...tickets].sort((a, b) => {
+                            const rank: Record<PriorityLevel, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 };
+                            return rank[a.priority] - rank[b.priority];
+                          }).slice(0, 4).map((ticket) => (
                             <tr
                               key={ticket.id}
                               onClick={() => {
@@ -961,10 +1021,11 @@ export default function Home() {
               </div>
 
               {apiError && (
-                <div className="api-error">
-                  {apiError}
-                  <button onClick={() => void loadTickets()}>
-                    Thử tải lại
+                <div className="api-error" role="alert">
+                  <span className="api-error-icon">!</span>
+                  <div><strong>Không tải được ticket</strong><p>{apiError}</p></div>
+                  <button disabled={ticketsLoading} onClick={() => void loadTickets()}>
+                    {ticketsLoading ? "Đang thử…" : "Thử lại"}
                   </button>
                 </div>
               )}
@@ -988,6 +1049,11 @@ export default function Home() {
                     <option value="Open">Đang mở</option>
                     <option value="In Progress">Đang xử lý</option>
                     <option value="Resolved">Đã giải quyết</option>
+                  </select>
+                  <select aria-label="Sắp xếp ticket" value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
+                    <option value="recent">Mới nhất</option>
+                    <option value="oldest">Cũ nhất</option>
+                    <option value="priority">Ưu tiên cao trước</option>
                   </select>
                 </div>
 

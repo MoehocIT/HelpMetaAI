@@ -2,36 +2,157 @@
   "name": "WF04 - Team Assignment",
   "nodes": [
     {
+      "id": "e379085e-469a-49aa-b071-4d9e12cb9caa",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
       "parameters": {
         "httpMethod": "POST",
         "path": "team-assignment",
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "6b321719-a39b-4d98-8641-0b4706319911",
-      "name": "Webhook",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
       "position": [
         0,
         0
       ],
-      "webhookId": "ff0ef14b-37b3-45f4-9808-71e70edea8cc"
+      "webhookId": "d951eeed-ff14-4b57-9d9f-31cdf78cdda3"
     },
     {
-      "parameters": {
-        "jsCode": "const teams={Network:'Network Support',Hardware:'Hardware Support',Software:'Software Support',General:'IT General'};\nreturn [{json:{...$json,assignedTeam:teams[$json.category]??'IT General',workflowTrace:[...($json.workflowTrace??[]),'WF04']}}];"
-      },
-      "id": "9d1b611e-ed22-4fea-9703-d4bca7782b73",
-      "name": "Process Ticket",
+      "id": "3b5280f8-1476-4070-bfd8-a2e87fcb1319",
+      "name": "Normalize Input",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const payload = $json.body && typeof $json.body === 'object' ? { ...$json.body, ...$json } : $json;\nreturn [{ json: { ...payload, title: String(payload.title ?? '').trim(), description: String(payload.description ?? '').trim() } }];"
+      },
       "position": [
         240,
         0
       ]
     },
     {
+      "id": "5d6cfa2c-96ce-404f-b706-8f548ff45603",
+      "name": "Validate Required Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "if (!$json.title || !$json.description) throw new Error('Ticket title and description are required');\nreturn [{ json: { ...$json, validation: { valid: true, checkedAt: new Date().toISOString() } } }];"
+      },
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "id": "78562896-0dde-4749-a87b-0ec794bdc39e",
+      "name": "Normalize Ticket Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, ticketId: String($json.ticketId ?? ('TCK-' + Date.now())), status: String($json.status ?? 'Open'), workflowTrace: Array.isArray($json.workflowTrace) ? $json.workflowTrace : [], stepTrace: Array.isArray($json.stepTrace) ? $json.stepTrace : [] } }];"
+      },
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "id": "5e394e1f-bc28-4cd6-ae50-3b6951008c62",
+      "name": "Normalize Category",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const allowed=['Network','Hardware','Software','Account & Access','Security','Other']; const category=allowed.includes($json.category)?$json.category:'Other'; return [{ json: { ...$json, category } }];"
+      },
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "id": "e0547397-b634-49b8-92c8-6d80a2cfde16",
+      "name": "Select Support Team",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const teams={Network:'Network Support',Hardware:'Hardware Support',Software:'Software Support','Account & Access':'Identity and Access Support',Security:'Security Operations',Other:'IT General'}; return [{ json: { ...$json, assignedTeam: $json.assignedTeam || teams[$json.category] } }];"
+      },
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "id": "e5ec5834-a8df-4cd3-b0c6-d46ed44adda5",
+      "name": "Select Assignment Queue",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const queues={Network:'queue-network',Hardware:'queue-hardware',Software:'queue-software','Account & Access':'queue-access',Security:'queue-security',Other:'queue-general'}; return [{ json: { ...$json, assignmentQueue: queues[$json.category] } }];"
+      },
+      "position": [
+        1440,
+        0
+      ]
+    },
+    {
+      "id": "56a545fc-0d1d-4e37-9272-2e37cc2f71ac",
+      "name": "Set Assignment Reason",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, assignmentReason: 'Routed by category: ' + $json.category } }];"
+      },
+      "position": [
+        1680,
+        0
+      ]
+    },
+    {
+      "id": "06ae163b-235b-41b4-8ddd-4e9d1c27bd82",
+      "name": "Check Assignment Completeness",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, assignment: { team: $json.assignedTeam, queue: $json.assignmentQueue, assigned: Boolean($json.assignedTeam) } } }];"
+      },
+      "position": [
+        1920,
+        0
+      ]
+    },
+    {
+      "id": "264c931a-7e4e-4e22-b12c-aaf67dd43442",
+      "name": "Append Workflow Trace",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const workflowId = $workflow.name.match(/^WF\\d+/)?.[0] ?? 'WF';\nreturn [{ json: { ...$json, workflowTrace: [...new Set([...($json.workflowTrace ?? []), workflowId])], stepTrace: [...($json.stepTrace ?? []), 'workflow-complete'] } }];"
+      },
+      "position": [
+        2160,
+        0
+      ]
+    },
+    {
+      "id": "660c4526-3d45-4cf3-895f-5b066e982141",
+      "name": "Build Result Envelope",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, workflowResult: { workflow: $workflow.name, ticketId: $json.ticketId, processedAt: new Date().toISOString(), success: true } } }];"
+      },
+      "position": [
+        2400,
+        0
+      ]
+    },
+    {
+      "id": "3d565b25-1c99-4f1a-8aa8-b3480e6d81b0",
+      "name": "Call Next Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "parameters": {
         "method": "POST",
         "url": "http://localhost:5678/webhook/duplicate-detection",
@@ -40,19 +161,19 @@
         "rawContentType": "application/json",
         "body": "={{ JSON.stringify($json) }}",
         "options": {
-          "timeout": 10000
+          "timeout": 30000
         }
       },
-      "id": "5af2b849-60e2-415c-93c3-91612d4aa71f",
-      "name": "Call Next Workflow",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
       "position": [
-        500,
+        2640,
         0
       ]
     },
     {
+      "id": "e238adae-4f10-466f-8fe5-b53d558f2dfb",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ $json }}",
@@ -60,12 +181,8 @@
           "responseCode": 200
         }
       },
-      "id": "afb47606-1616-4ad2-9b4a-2cdfeda129bd",
-      "name": "Respond",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
       "position": [
-        760,
+        2880,
         0
       ]
     }
@@ -75,14 +192,113 @@
       "main": [
         [
           {
-            "node": "Process Ticket",
+            "node": "Normalize Input",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Process Ticket": {
+    "Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "Validate Required Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Required Fields": {
+      "main": [
+        [
+          {
+            "node": "Normalize Ticket Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Ticket Metadata": {
+      "main": [
+        [
+          {
+            "node": "Normalize Category",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Category": {
+      "main": [
+        [
+          {
+            "node": "Select Support Team",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Support Team": {
+      "main": [
+        [
+          {
+            "node": "Select Assignment Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Assignment Queue": {
+      "main": [
+        [
+          {
+            "node": "Set Assignment Reason",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Assignment Reason": {
+      "main": [
+        [
+          {
+            "node": "Check Assignment Completeness",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Assignment Completeness": {
+      "main": [
+        [
+          {
+            "node": "Append Workflow Trace",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append Workflow Trace": {
+      "main": [
+        [
+          {
+            "node": "Build Result Envelope",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Result Envelope": {
       "main": [
         [
           {
@@ -97,7 +313,7 @@
       "main": [
         [
           {
-            "node": "Respond",
+            "node": "Respond to Webhook",
             "type": "main",
             "index": 0
           }
@@ -110,7 +326,7 @@
     "executionOrder": "v1",
     "saveManualExecutions": true
   },
-  "versionId": "75f704a2-796a-4516-acb6-6c5477bb7a68",
+  "versionId": "47a06df7-c9f6-488a-9253-d87a8ddc3c60",
   "meta": {
     "templateCredsSetupCompleted": true
   },

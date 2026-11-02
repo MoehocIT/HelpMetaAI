@@ -2,36 +2,157 @@
   "name": "WF01 - Ticket Intake",
   "nodes": [
     {
+      "id": "3d74e144-9b6c-4075-90cb-c8ea970e320d",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
       "parameters": {
         "httpMethod": "POST",
         "path": "ticket-intake",
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "e35122c5-4f7c-4201-84ac-3b066644a500",
-      "name": "Webhook",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
       "position": [
         0,
         0
       ],
-      "webhookId": "99c2e3de-a952-4845-819c-35245f7341c1"
+      "webhookId": "0021b2ae-b3a5-48ce-87d8-4b100b63b7d5"
     },
     {
-      "parameters": {
-        "jsCode": "const body = $json.body ?? $json;\nconst title = String(body.title ?? '').trim();\nconst description = String(body.description ?? '').trim();\nif (!title || !description) throw new Error('title and description are required');\nconst ticketId = String(body.ticketId ?? `TCK-${Date.now()}`);\nreturn [{json:{...body,ticketId,title,description,status:body.status ?? 'Open',createdAt:body.createdAt ?? new Date().toISOString(),source:'helpdeskai',workflowTrace:['WF01']}}];"
-      },
-      "id": "c61f6391-257c-4e09-bbfb-b78c6a916a87",
-      "name": "Process Ticket",
+      "id": "fa5dc369-4172-42b4-8aca-f98502915bba",
+      "name": "Normalize Input",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const payload = $json.body && typeof $json.body === 'object' ? { ...$json.body, ...$json } : $json;\nreturn [{ json: { ...payload, title: String(payload.title ?? '').trim(), description: String(payload.description ?? '').trim() } }];"
+      },
       "position": [
         240,
         0
       ]
     },
     {
+      "id": "3479e181-e8de-4123-b2eb-e3a3ff940a4c",
+      "name": "Validate Required Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "if (!$json.title || !$json.description) throw new Error('Ticket title and description are required');\nreturn [{ json: { ...$json, validation: { valid: true, checkedAt: new Date().toISOString() } } }];"
+      },
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "id": "2b047107-afe2-4e1d-9f7f-b5bb83aaeda8",
+      "name": "Normalize Ticket Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, ticketId: String($json.ticketId ?? ('TCK-' + Date.now())), status: String($json.status ?? 'Open'), workflowTrace: Array.isArray($json.workflowTrace) ? $json.workflowTrace : [], stepTrace: Array.isArray($json.stepTrace) ? $json.stepTrace : [] } }];"
+      },
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "id": "940a020a-1f12-46ae-bae1-20d7b437bb28",
+      "name": "Generate Ticket Identifier",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, ticketId: String($json.ticketId || ('TCK-' + Date.now())) } }];"
+      },
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "id": "d84e54ae-2a70-420b-8858-bc911f42f2f6",
+      "name": "Record Intake Timestamp",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, createdAt: $json.createdAt || new Date().toISOString() } }];"
+      },
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "id": "dce967a5-f81b-461d-8013-6e72853eb5d8",
+      "name": "Set Intake Source",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, source: $json.source || 'helpdeskai' } }];"
+      },
+      "position": [
+        1440,
+        0
+      ]
+    },
+    {
+      "id": "944d47b6-462a-4974-9c5a-85f5489a0f20",
+      "name": "Set Initial Ticket Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, status: $json.status || 'Open' } }];"
+      },
+      "position": [
+        1680,
+        0
+      ]
+    },
+    {
+      "id": "14b7bad7-7ca7-4efd-9c3f-65cb2f464ed6",
+      "name": "Create Intake Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, intake: { accepted: true, titleLength: $json.title.length, descriptionLength: $json.description.length } } }];"
+      },
+      "position": [
+        1920,
+        0
+      ]
+    },
+    {
+      "id": "d5de5a6d-86f9-4318-bbf2-d97113afaa49",
+      "name": "Append Workflow Trace",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const workflowId = $workflow.name.match(/^WF\\d+/)?.[0] ?? 'WF';\nreturn [{ json: { ...$json, workflowTrace: [...new Set([...($json.workflowTrace ?? []), workflowId])], stepTrace: [...($json.stepTrace ?? []), 'workflow-complete'] } }];"
+      },
+      "position": [
+        2160,
+        0
+      ]
+    },
+    {
+      "id": "ecf43036-c892-4fe9-ad8d-2e4f0589d700",
+      "name": "Build Result Envelope",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, workflowResult: { workflow: $workflow.name, ticketId: $json.ticketId, processedAt: new Date().toISOString(), success: true } } }];"
+      },
+      "position": [
+        2400,
+        0
+      ]
+    },
+    {
+      "id": "8909bf1d-d7b0-429d-ac26-1a5aaa4d0462",
+      "name": "Call Next Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "parameters": {
         "method": "POST",
         "url": "http://localhost:5678/webhook/ticket-classification",
@@ -40,19 +161,19 @@
         "rawContentType": "application/json",
         "body": "={{ JSON.stringify($json) }}",
         "options": {
-          "timeout": 10000
+          "timeout": 30000
         }
       },
-      "id": "c8a35ce7-e35e-418d-9cb8-8fbb90ddadf4",
-      "name": "Call Next Workflow",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
       "position": [
-        500,
+        2640,
         0
       ]
     },
     {
+      "id": "5bfdeee8-36a3-4922-97d1-25a99363c4c2",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ $json }}",
@@ -60,12 +181,8 @@
           "responseCode": 200
         }
       },
-      "id": "2440f214-527b-4e09-8a82-350350ac46fc",
-      "name": "Respond",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
       "position": [
-        760,
+        2880,
         0
       ]
     }
@@ -75,14 +192,113 @@
       "main": [
         [
           {
-            "node": "Process Ticket",
+            "node": "Normalize Input",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Process Ticket": {
+    "Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "Validate Required Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Required Fields": {
+      "main": [
+        [
+          {
+            "node": "Normalize Ticket Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Ticket Metadata": {
+      "main": [
+        [
+          {
+            "node": "Generate Ticket Identifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Ticket Identifier": {
+      "main": [
+        [
+          {
+            "node": "Record Intake Timestamp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Intake Timestamp": {
+      "main": [
+        [
+          {
+            "node": "Set Intake Source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Intake Source": {
+      "main": [
+        [
+          {
+            "node": "Set Initial Ticket Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Initial Ticket Status": {
+      "main": [
+        [
+          {
+            "node": "Create Intake Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Intake Summary": {
+      "main": [
+        [
+          {
+            "node": "Append Workflow Trace",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append Workflow Trace": {
+      "main": [
+        [
+          {
+            "node": "Build Result Envelope",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Result Envelope": {
       "main": [
         [
           {
@@ -97,7 +313,7 @@
       "main": [
         [
           {
-            "node": "Respond",
+            "node": "Respond to Webhook",
             "type": "main",
             "index": 0
           }
@@ -110,7 +326,7 @@
     "executionOrder": "v1",
     "saveManualExecutions": true
   },
-  "versionId": "4f599c61-9df9-4ac2-b8fd-2547de07d605",
+  "versionId": "fe40a320-5d67-4913-a0e6-dd94b9b02392",
   "meta": {
     "templateCredsSetupCompleted": true
   },

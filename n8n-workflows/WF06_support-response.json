@@ -2,36 +2,157 @@
   "name": "WF06 - Support Response",
   "nodes": [
     {
+      "id": "b2eab3ee-3d0c-4b4a-93c4-28e7205555f6",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
       "parameters": {
         "httpMethod": "POST",
         "path": "support-response",
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "6aabc8b7-0008-4315-b3e7-55dccc3c69cb",
-      "name": "Webhook",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
       "position": [
         0,
         0
       ],
-      "webhookId": "8abe9a2e-d5af-47a0-b68b-dca1cc365a5f"
+      "webhookId": "4fb3a313-bd74-40d0-bbf4-4a9f892c9be3"
     },
     {
-      "parameters": {
-        "jsCode": "const category=$json.category??'General';\nconst tips={Network:'Check whether other devices can connect, reconnect to the network, and capture any error message.',Hardware:'Check power and cable connections, restart the device if safe, and note any indicator lights or error messages.',Software:'Restart the application, record the exact error, and note any recent updates or changes.',General:'Please provide the exact error message, when the issue started, and the steps already attempted.'};\nreturn [{json:{...$json,suggestedResponse:`We received your ticket ${$json.ticketId}. The support team will review it. Suggested first step: ${tips[category]??tips.General}`,workflowTrace:[...($json.workflowTrace??[]),'WF06']}}];"
-      },
-      "id": "5f7eb9c1-b932-4866-aa4e-2aa900cd5144",
-      "name": "Process Ticket",
+      "id": "0d1b67f2-6778-4e7b-a1e4-794e209ccdc8",
+      "name": "Normalize Input",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const payload = $json.body && typeof $json.body === 'object' ? { ...$json.body, ...$json } : $json;\nreturn [{ json: { ...payload, title: String(payload.title ?? '').trim(), description: String(payload.description ?? '').trim() } }];"
+      },
       "position": [
         240,
         0
       ]
     },
     {
+      "id": "b099ee0e-e0e6-43d6-ac2f-46fdb6e65f0c",
+      "name": "Validate Required Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "if (!$json.title || !$json.description) throw new Error('Ticket title and description are required');\nreturn [{ json: { ...$json, validation: { valid: true, checkedAt: new Date().toISOString() } } }];"
+      },
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "id": "f3483d35-ab95-411e-852d-3680fe75e05d",
+      "name": "Normalize Ticket Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, ticketId: String($json.ticketId ?? ('TCK-' + Date.now())), status: String($json.status ?? 'Open'), workflowTrace: Array.isArray($json.workflowTrace) ? $json.workflowTrace : [], stepTrace: Array.isArray($json.stepTrace) ? $json.stepTrace : [] } }];"
+      },
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "id": "ffe47092-0e30-4d99-ac8b-697984ddc9be",
+      "name": "Choose Category Guidance",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const tips={Network:'Kiểm tra các thiết bị khác, kết nối lại mạng và ghi lại thông báo lỗi.',Hardware:'Kiểm tra nguồn và dây cáp; ghi lại đèn báo hoặc thông báo lỗi.',Software:'Khởi động lại ứng dụng, ghi lại lỗi và thay đổi gần đây.',Security:'Không mở liên kết đáng ngờ; báo ngay cho đội an ninh và không gửi mật khẩu/OTP.', 'Account & Access':'Kiểm tra thông báo đăng nhập; không gửi mật khẩu hoặc mã OTP.',Other:'Ghi lại thời điểm bắt đầu và các bước đã thử.'}; return [{ json: { ...$json, responseGuidance: tips[$json.category]||tips.Other } }];"
+      },
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "id": "06edfe0f-50d0-4af4-9dcc-d2810af9e4bc",
+      "name": "Build Acknowledgement",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, responseAcknowledgement: 'Đã nhận yêu cầu ' + $json.ticketId + '. Đội hỗ trợ sẽ xem xét.' } }];"
+      },
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "id": "57b8d8a8-d2b0-4964-9e3f-e29eeeb16008",
+      "name": "Add First Troubleshooting Step",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, firstTroubleshootingStep: $json.responseGuidance } }];"
+      },
+      "position": [
+        1440,
+        0
+      ]
+    },
+    {
+      "id": "bb51fc0d-5897-44eb-823c-5c61b4f762d3",
+      "name": "Apply Credential Safety Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const safe=!/password|otp|mật khẩu|mã otp/i.test($json.responseGuidance); return [{ json: { ...$json, responseSafety: { noSecretRequested: safe } } }];"
+      },
+      "position": [
+        1680,
+        0
+      ]
+    },
+    {
+      "id": "761362c8-8656-4c80-bad0-707c384539e6",
+      "name": "Compose Suggested Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, suggestedResponse: $json.responseAcknowledgement + ' ' + $json.responseGuidance } }];"
+      },
+      "position": [
+        1920,
+        0
+      ]
+    },
+    {
+      "id": "fc9ce7b3-ebec-4a5b-bdcc-b2eedeb0b3bf",
+      "name": "Append Workflow Trace",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const workflowId = $workflow.name.match(/^WF\\d+/)?.[0] ?? 'WF';\nreturn [{ json: { ...$json, workflowTrace: [...new Set([...($json.workflowTrace ?? []), workflowId])], stepTrace: [...($json.stepTrace ?? []), 'workflow-complete'] } }];"
+      },
+      "position": [
+        2160,
+        0
+      ]
+    },
+    {
+      "id": "8889a5d7-d1ab-4a2c-b400-4a3dbbd4bc13",
+      "name": "Build Result Envelope",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, workflowResult: { workflow: $workflow.name, ticketId: $json.ticketId, processedAt: new Date().toISOString(), success: true } } }];"
+      },
+      "position": [
+        2400,
+        0
+      ]
+    },
+    {
+      "id": "2a5f1889-1c79-4532-b747-d07e4faf3055",
+      "name": "Call Next Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "parameters": {
         "method": "POST",
         "url": "http://localhost:5678/webhook/high-priority-alert",
@@ -40,19 +161,19 @@
         "rawContentType": "application/json",
         "body": "={{ JSON.stringify($json) }}",
         "options": {
-          "timeout": 10000
+          "timeout": 30000
         }
       },
-      "id": "c13f9425-95d3-4088-857f-264487143cd7",
-      "name": "Call Next Workflow",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
       "position": [
-        500,
+        2640,
         0
       ]
     },
     {
+      "id": "b36f78d3-754c-4c27-bec8-281524710be9",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ $json }}",
@@ -60,12 +181,8 @@
           "responseCode": 200
         }
       },
-      "id": "08e3de2e-094e-4b42-84e6-1edcc3946a0f",
-      "name": "Respond",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
       "position": [
-        760,
+        2880,
         0
       ]
     }
@@ -75,14 +192,113 @@
       "main": [
         [
           {
-            "node": "Process Ticket",
+            "node": "Normalize Input",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Process Ticket": {
+    "Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "Validate Required Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Required Fields": {
+      "main": [
+        [
+          {
+            "node": "Normalize Ticket Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Ticket Metadata": {
+      "main": [
+        [
+          {
+            "node": "Choose Category Guidance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Choose Category Guidance": {
+      "main": [
+        [
+          {
+            "node": "Build Acknowledgement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Acknowledgement": {
+      "main": [
+        [
+          {
+            "node": "Add First Troubleshooting Step",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add First Troubleshooting Step": {
+      "main": [
+        [
+          {
+            "node": "Apply Credential Safety Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Credential Safety Check": {
+      "main": [
+        [
+          {
+            "node": "Compose Suggested Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compose Suggested Response": {
+      "main": [
+        [
+          {
+            "node": "Append Workflow Trace",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append Workflow Trace": {
+      "main": [
+        [
+          {
+            "node": "Build Result Envelope",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Result Envelope": {
       "main": [
         [
           {
@@ -97,7 +313,7 @@
       "main": [
         [
           {
-            "node": "Respond",
+            "node": "Respond to Webhook",
             "type": "main",
             "index": 0
           }
@@ -110,7 +326,7 @@
     "executionOrder": "v1",
     "saveManualExecutions": true
   },
-  "versionId": "aec1a998-58d6-4c91-b856-d3a9a63f3565",
+  "versionId": "7348b88b-45ff-4f4e-b66a-63c5f2081006",
   "meta": {
     "templateCredsSetupCompleted": true
   },

@@ -2,36 +2,175 @@
   "name": "WF09 - Audit Log",
   "nodes": [
     {
+      "id": "39c02f4e-671b-4e4a-ae11-ea94750f2fe0",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
       "parameters": {
         "httpMethod": "POST",
         "path": "audit-log",
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "b2d04e12-20ac-4167-a710-8d3af9cfba20",
-      "name": "Webhook",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
       "position": [
         0,
         0
       ],
-      "webhookId": "9734a5ee-9916-48fa-8b64-161b239f0481"
+      "webhookId": "e76819f8-be9a-47dc-9294-2acc15fffe4e"
     },
     {
-      "parameters": {
-        "jsCode": "return [{json:{...$json,auditLog:{event:'ticket.processed',ticketId:$json.ticketId,processedAt:new Date().toISOString(),workflowTrace:[...($json.workflowTrace??[]),'WF09']},processingComplete:true}}];"
-      },
-      "id": "4dd06f9c-87e3-4117-b299-f0462aa6752a",
-      "name": "Process Ticket",
+      "id": "d2809c72-133a-4efc-a06c-47d5d0fb7236",
+      "name": "Normalize Input",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const payload = $json.body && typeof $json.body === 'object' ? { ...$json.body, ...$json } : $json;\nreturn [{ json: { ...payload, title: String(payload.title ?? '').trim(), description: String(payload.description ?? '').trim() } }];"
+      },
       "position": [
         240,
         0
       ]
     },
     {
+      "id": "c3d43298-8c40-4cf0-bc1c-2b07afa3a329",
+      "name": "Validate Required Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "if (!$json.title || !$json.description) throw new Error('Ticket title and description are required');\nreturn [{ json: { ...$json, validation: { valid: true, checkedAt: new Date().toISOString() } } }];"
+      },
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "id": "3214b6b8-42e3-4f7c-93bc-966a4156ecdd",
+      "name": "Normalize Ticket Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, ticketId: String($json.ticketId ?? ('TCK-' + Date.now())), status: String($json.status ?? 'Open'), workflowTrace: Array.isArray($json.workflowTrace) ? $json.workflowTrace : [], stepTrace: Array.isArray($json.stepTrace) ? $json.stepTrace : [] } }];"
+      },
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "id": "9bf3fb1e-10cc-4562-a8b8-dcfaacaeac82",
+      "name": "Set Audit Event Type",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, auditEventType: 'ticket.processed' } }];"
+      },
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "id": "9862fb66-2866-43ec-98ea-68fec5c82aa3",
+      "name": "Capture Audit Timestamp",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, auditTimestamp: new Date().toISOString() } }];"
+      },
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "id": "f206b9cc-e911-4955-be75-b363e67b2765",
+      "name": "Capture Ticket Identity",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, auditTicket: { ticketId: $json.ticketId, status: $json.status, category: $json.category, priority: $json.priority } } }];"
+      },
+      "position": [
+        1440,
+        0
+      ]
+    },
+    {
+      "id": "fcde1962-fa0d-4398-85c3-08a52b73c32b",
+      "name": "Redact Sensitive Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const redacted={...$json}; for(const key of Object.keys(redacted)) if(/password|secret|token|otp/i.test(key)) redacted[key]='[REDACTED]'; return [{ json: redacted }];"
+      },
+      "position": [
+        1680,
+        0
+      ]
+    },
+    {
+      "id": "d10b6bea-bffc-4a00-9a98-648e837d51ec",
+      "name": "Build Audit Record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, auditLog: { event: $json.auditEventType, ticketId: $json.ticketId, processedAt: $json.auditTimestamp, workflowTrace: $json.workflowTrace, status: $json.status } } }];"
+      },
+      "position": [
+        1920,
+        0
+      ]
+    },
+    {
+      "id": "1fa26d49-3249-4ee6-8d87-693c005054d5",
+      "name": "Save Audit to MongoDB",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1.1,
+      "parameters": {
+        "operation": "insert",
+        "collection": "ticket_audit",
+        "fields": "ticketId,title,description,status,category,categoryRationale,aiClassification,priority,priorityReason,assignedTeam,assignmentQueue,assignmentReason,duplicateFingerprint,deduplication,suggestedResponse,alert,sla,workflowTrace,stepTrace,auditEventType,auditTimestamp,auditTicket,auditLog",
+        "options": {
+          "useDotNotation": true
+        }
+      },
+      "position": [
+        2160,
+        0
+      ]
+    },
+    {
+      "id": "668975da-0af7-4139-8647-fa6e51bf2f75",
+      "name": "Append Workflow Trace",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const workflowId = $workflow.name.match(/^WF\\d+/)?.[0] ?? 'WF';\nreturn [{ json: { ...$json, workflowTrace: [...new Set([...($json.workflowTrace ?? []), workflowId])], stepTrace: [...($json.stepTrace ?? []), 'workflow-complete'] } }];"
+      },
+      "position": [
+        2400,
+        0
+      ]
+    },
+    {
+      "id": "d64a0164-e28b-43cd-90b3-40f6a15ff8fd",
+      "name": "Build Result Envelope",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, workflowResult: { workflow: $workflow.name, ticketId: $json.ticketId, processedAt: new Date().toISOString(), success: true } } }];"
+      },
+      "position": [
+        2640,
+        0
+      ]
+    },
+    {
+      "id": "6865ad86-1625-4b04-b5fa-28f0269ce6e1",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ $json }}",
@@ -39,12 +178,8 @@
           "responseCode": 200
         }
       },
-      "id": "c4af94c6-4c6b-4079-8557-9a439552856f",
-      "name": "Respond",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
       "position": [
-        500,
+        2880,
         0
       ]
     }
@@ -54,18 +189,128 @@
       "main": [
         [
           {
-            "node": "Process Ticket",
+            "node": "Normalize Input",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Process Ticket": {
+    "Normalize Input": {
       "main": [
         [
           {
-            "node": "Respond",
+            "node": "Validate Required Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Required Fields": {
+      "main": [
+        [
+          {
+            "node": "Normalize Ticket Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Ticket Metadata": {
+      "main": [
+        [
+          {
+            "node": "Set Audit Event Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Audit Event Type": {
+      "main": [
+        [
+          {
+            "node": "Capture Audit Timestamp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Capture Audit Timestamp": {
+      "main": [
+        [
+          {
+            "node": "Capture Ticket Identity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Capture Ticket Identity": {
+      "main": [
+        [
+          {
+            "node": "Redact Sensitive Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redact Sensitive Fields": {
+      "main": [
+        [
+          {
+            "node": "Build Audit Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Audit Record": {
+      "main": [
+        [
+          {
+            "node": "Save Audit to MongoDB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Audit to MongoDB": {
+      "main": [
+        [
+          {
+            "node": "Append Workflow Trace",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append Workflow Trace": {
+      "main": [
+        [
+          {
+            "node": "Build Result Envelope",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Result Envelope": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
             "type": "main",
             "index": 0
           }
@@ -78,7 +323,7 @@
     "executionOrder": "v1",
     "saveManualExecutions": true
   },
-  "versionId": "dbb71f02-3688-4720-bd15-bbc01d6a0de0",
+  "versionId": "2a51b535-4058-4744-a6d9-b3efde0075bd",
   "meta": {
     "templateCredsSetupCompleted": true
   },

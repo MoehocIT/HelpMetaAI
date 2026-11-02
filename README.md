@@ -1,6 +1,6 @@
 # HelpMate AI IT Helpdesk — bản kết hợp
 
-Dự án gồm giao diện Next.js, API quản lý ticket, MongoDB và 9 workflow n8n.
+Dự án gồm giao diện Next.js, API quản lý ticket, MongoDB và 9 workflow n8n. Mỗi workflow có ít nhất 12 node/bước; chi tiết tại `n8n-workflows/README.md`.
 
 ## Yêu cầu
 - Node.js 20.9+ (khuyến nghị bản LTS)
@@ -32,12 +32,14 @@ Mở http://localhost:3000
 ## 3. Kết nối n8n (tùy chọn)
 1. Mở n8n.
 2. Import các file JSON trong `n8n-workflows/` (Import from File).
-3. Cấu hình lần lượt các node HTTP Request trong từng workflow để gọi URL webhook của workflow kế tiếp. Kiểm tra credential/URL theo môi trường n8n của bạn.
-4. Kích hoạt `WF01 - Ticket Intake`.
-5. Sao chép **Production URL** của Webhook node trong WF01 và đặt vào `N8N_WEBHOOK_URL` trong `.env.local`.
-6. Khởi động lại Next.js sau khi thay đổi biến môi trường.
+3. Trong `WF02 - Ticket Classification`, node `Classify with Ollama` gọi Ollama trên Windows host qua `http://10.0.2.2:11434/api/generate` với model `llama3.2`. Ollama phải được cài model và cho phép VM truy cập cổng 11434; nếu Ollama chạy trong Arch VM, đổi URL thành `http://127.0.0.1:11434/api/generate`.
+4. Trong `WF09 - Audit Log`, tạo credential MongoDB trong n8n rồi chọn cho node `Save Audit to MongoDB`. Node ghi ticket/audit vào database `helpdeskai`, collection `ticket_audit` (database được chọn trong credential). MongoDB phải truy cập được từ môi trường đang chạy n8n.
+5. Kiểm tra URL nối giữa các workflow theo môi trường n8n của bạn.
+6. Kích hoạt `WF01 - Ticket Intake`.
+7. Sao chép **Production URL** của Webhook node trong WF01 và đặt vào `N8N_WEBHOOK_URL` trong `.env.local`.
+8. Khởi động lại Next.js sau khi thay đổi biến môi trường.
 
-Các workflow hiện được xuất ở trạng thái chưa kích hoạt. Hãy kiểm tra URL nối giữa các workflow và thử bằng dữ liệu giả trước khi dùng thật; import workflow không tự động cấu hình credential hoặc tự kích hoạt chúng.
+Các workflow hiện được xuất ở trạng thái chưa kích hoạt. Hãy kiểm tra URL nối giữa các workflow và thử bằng dữ liệu giả trước khi dùng thật; import workflow không tự động cấu hình credential hoặc tự kích hoạt chúng. Ollama/MongoDB chưa được cài đặt hoặc cấu hình thay bạn.
 
 ## Các workflow đi kèm
 - WF01 — Ticket Intake

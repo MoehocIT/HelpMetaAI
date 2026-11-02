@@ -2,36 +2,157 @@
   "name": "WF03 - Priority Assessment",
   "nodes": [
     {
+      "id": "3365c98b-df19-4f3a-8027-8ca145faa859",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
       "parameters": {
         "httpMethod": "POST",
         "path": "priority-assessment",
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "b65df801-dee6-4209-a47e-00dda1244723",
-      "name": "Webhook",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
       "position": [
         0,
         0
       ],
-      "webhookId": "6483cdb2-edbd-4ac3-9412-16e3542c77eb"
+      "webhookId": "d7e9ae1d-ce7f-4b20-a0a6-4cfe2b90087c"
     },
     {
-      "parameters": {
-        "jsCode": "const t = `${$json.title} ${$json.description}`.toLowerCase();\nlet priority='Medium';\nif (/urgent|critical|production down|all users|security breach|data loss|cannot work|outage/.test(t)) priority='High';\nelse if (/when possible|minor|question|how to|request information/.test(t)) priority='Low';\nreturn [{json:{...$json,priority,workflowTrace:[...($json.workflowTrace??[]),'WF03']}}];"
-      },
-      "id": "4b5368bc-0acb-4048-9090-04b44750e1b1",
-      "name": "Process Ticket",
+      "id": "b5754f2e-f25b-4bf2-8e58-2996461b2fe2",
+      "name": "Normalize Input",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const payload = $json.body && typeof $json.body === 'object' ? { ...$json.body, ...$json } : $json;\nreturn [{ json: { ...payload, title: String(payload.title ?? '').trim(), description: String(payload.description ?? '').trim() } }];"
+      },
       "position": [
         240,
         0
       ]
     },
     {
+      "id": "4774d8d0-fb27-46a3-9da6-518ea79a68d0",
+      "name": "Validate Required Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "if (!$json.title || !$json.description) throw new Error('Ticket title and description are required');\nreturn [{ json: { ...$json, validation: { valid: true, checkedAt: new Date().toISOString() } } }];"
+      },
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "id": "1571511b-1b1e-4e4d-94bd-c40349f41409",
+      "name": "Normalize Ticket Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, ticketId: String($json.ticketId ?? ('TCK-' + Date.now())), status: String($json.status ?? 'Open'), workflowTrace: Array.isArray($json.workflowTrace) ? $json.workflowTrace : [], stepTrace: Array.isArray($json.stepTrace) ? $json.stepTrace : [] } }];"
+      },
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "id": "2aff4ed3-ccd8-4014-8a86-e6f24ea64513",
+      "name": "Prepare Impact Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const text=($json.title + ' ' + $json.description).toLowerCase(); return [{ json: { ...$json, impactText: text } }];"
+      },
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "id": "efd07687-1d1a-465b-856b-23d2d2c58ced",
+      "name": "Detect Security or Data Risk",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const risk=/security breach|phishing|malware|data loss|ransomware|mất dữ liệu|mã độc|bị xâm nhập/.test($json.impactText); return [{ json: { ...$json, prioritySignals: { ...($json.prioritySignals ?? {}), securityOrDataRisk: risk } } }];"
+      },
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "id": "b0934fb3-4485-47b9-a3d8-dd8fc72a304f",
+      "name": "Detect Service Outage",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const outage=/production down|all users|outage|service unavailable|toàn bộ|ngừng hoạt động/.test($json.impactText); return [{ json: { ...$json, prioritySignals: { ...$json.prioritySignals, outage } } }];"
+      },
+      "position": [
+        1440,
+        0
+      ]
+    },
+    {
+      "id": "cb18835e-2fc4-489c-b62d-b84462083cae",
+      "name": "Detect Work Stoppage",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const stopped=/cannot work|work stopped|business critical|không thể làm việc|dừng công việc/.test($json.impactText); return [{ json: { ...$json, prioritySignals: { ...$json.prioritySignals, workStoppage: stopped } } }];"
+      },
+      "position": [
+        1680,
+        0
+      ]
+    },
+    {
+      "id": "92b472a8-bbca-4e01-8759-a6cd30c58a98",
+      "name": "Set Priority and Rationale",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "let priority='Medium'; if($json.prioritySignals.securityOrDataRisk||$json.prioritySignals.outage||$json.prioritySignals.workStoppage||/urgent|critical|khẩn cấp/.test($json.impactText)) priority='High'; else if(/minor|question|how to|low impact|hỏi cách|không gấp/.test($json.impactText)) priority='Low'; return [{ json: { ...$json, priority, priorityReason: priority==='High'?'Critical impact or security signal detected':'Priority estimated from ticket text; verify with support staff' } }];"
+      },
+      "position": [
+        1920,
+        0
+      ]
+    },
+    {
+      "id": "d09235f9-70e8-45ed-9653-94da2e7205be",
+      "name": "Append Workflow Trace",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const workflowId = $workflow.name.match(/^WF\\d+/)?.[0] ?? 'WF';\nreturn [{ json: { ...$json, workflowTrace: [...new Set([...($json.workflowTrace ?? []), workflowId])], stepTrace: [...($json.stepTrace ?? []), 'workflow-complete'] } }];"
+      },
+      "position": [
+        2160,
+        0
+      ]
+    },
+    {
+      "id": "1ed811df-742d-4976-86b1-9b22f93c5c93",
+      "name": "Build Result Envelope",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, workflowResult: { workflow: $workflow.name, ticketId: $json.ticketId, processedAt: new Date().toISOString(), success: true } } }];"
+      },
+      "position": [
+        2400,
+        0
+      ]
+    },
+    {
+      "id": "c83c111c-3155-46f0-802a-523eb71a8428",
+      "name": "Call Next Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "parameters": {
         "method": "POST",
         "url": "http://localhost:5678/webhook/team-assignment",
@@ -40,19 +161,19 @@
         "rawContentType": "application/json",
         "body": "={{ JSON.stringify($json) }}",
         "options": {
-          "timeout": 10000
+          "timeout": 30000
         }
       },
-      "id": "f4c8d71f-8d3b-46f6-a8d4-897dfeaa73e0",
-      "name": "Call Next Workflow",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
       "position": [
-        500,
+        2640,
         0
       ]
     },
     {
+      "id": "dbc319b1-37b6-4ecc-9123-e32b4b464776",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ $json }}",
@@ -60,12 +181,8 @@
           "responseCode": 200
         }
       },
-      "id": "16cfe1ae-a9d9-4891-bfa7-8a29a36dc46f",
-      "name": "Respond",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
       "position": [
-        760,
+        2880,
         0
       ]
     }
@@ -75,14 +192,113 @@
       "main": [
         [
           {
-            "node": "Process Ticket",
+            "node": "Normalize Input",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Process Ticket": {
+    "Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "Validate Required Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Required Fields": {
+      "main": [
+        [
+          {
+            "node": "Normalize Ticket Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Ticket Metadata": {
+      "main": [
+        [
+          {
+            "node": "Prepare Impact Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Impact Text": {
+      "main": [
+        [
+          {
+            "node": "Detect Security or Data Risk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Security or Data Risk": {
+      "main": [
+        [
+          {
+            "node": "Detect Service Outage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Service Outage": {
+      "main": [
+        [
+          {
+            "node": "Detect Work Stoppage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Work Stoppage": {
+      "main": [
+        [
+          {
+            "node": "Set Priority and Rationale",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Priority and Rationale": {
+      "main": [
+        [
+          {
+            "node": "Append Workflow Trace",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append Workflow Trace": {
+      "main": [
+        [
+          {
+            "node": "Build Result Envelope",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Result Envelope": {
       "main": [
         [
           {
@@ -97,7 +313,7 @@
       "main": [
         [
           {
-            "node": "Respond",
+            "node": "Respond to Webhook",
             "type": "main",
             "index": 0
           }
@@ -110,7 +326,7 @@
     "executionOrder": "v1",
     "saveManualExecutions": true
   },
-  "versionId": "35a60fd9-34a9-4f74-baa8-b4b9ac34756e",
+  "versionId": "0bd2fc07-cc93-4cf1-b0a8-29f36be9aab0",
   "meta": {
     "templateCredsSetupCompleted": true
   },

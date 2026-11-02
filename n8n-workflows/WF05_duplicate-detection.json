@@ -2,36 +2,157 @@
   "name": "WF05 - Duplicate Detection",
   "nodes": [
     {
+      "id": "171d63aa-01d0-4bce-88f3-3855f67a0dd0",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
       "parameters": {
         "httpMethod": "POST",
         "path": "duplicate-detection",
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "eaf72337-20d6-4a55-a1de-e0ca2656d303",
-      "name": "Webhook",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
       "position": [
         0,
         0
       ],
-      "webhookId": "157a6fc7-831d-4266-9acd-c780d0dfc148"
+      "webhookId": "b41af96c-3eb6-4cd2-b3a7-6cde14399303"
     },
     {
-      "parameters": {
-        "jsCode": "const key = `${$json.title} ${$json.description}`.toLowerCase().replace(/[^a-z0-9\\s]/g,' ').replace(/\\s+/g,' ').trim();\nreturn [{json:{...$json,deduplication:{checked:false,normalizedFingerprint:key, note:'To compare against existing tickets, configure a MongoDB Find node or call the app duplicate-check API.'},workflowTrace:[...($json.workflowTrace??[]),'WF05']}}];"
-      },
-      "id": "f215705c-d38d-4add-94a6-8354454fc903",
-      "name": "Process Ticket",
+      "id": "3409d8a2-12e3-4100-b583-7b2e2c05c601",
+      "name": "Normalize Input",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const payload = $json.body && typeof $json.body === 'object' ? { ...$json.body, ...$json } : $json;\nreturn [{ json: { ...payload, title: String(payload.title ?? '').trim(), description: String(payload.description ?? '').trim() } }];"
+      },
       "position": [
         240,
         0
       ]
     },
     {
+      "id": "5c9caeb5-559d-432e-9a80-f9b786175eb6",
+      "name": "Validate Required Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "if (!$json.title || !$json.description) throw new Error('Ticket title and description are required');\nreturn [{ json: { ...$json, validation: { valid: true, checkedAt: new Date().toISOString() } } }];"
+      },
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "id": "ae4a7f56-a7c2-4685-957a-3fb09d21d574",
+      "name": "Normalize Ticket Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, ticketId: String($json.ticketId ?? ('TCK-' + Date.now())), status: String($json.status ?? 'Open'), workflowTrace: Array.isArray($json.workflowTrace) ? $json.workflowTrace : [], stepTrace: Array.isArray($json.stepTrace) ? $json.stepTrace : [] } }];"
+      },
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "id": "f5ac30cf-1756-43a7-b6f3-a67e69c98d8a",
+      "name": "Normalize Duplicate Search Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const t=($json.title + ' ' + $json.description).toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^a-z0-9\\s]/g,' ').replace(/\\s+/g,' ').trim(); return [{ json: { ...$json, duplicateSearchText: t } }];"
+      },
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "id": "1b1e6b08-c6dc-4fc8-9633-bd16d0635473",
+      "name": "Create Duplicate Fingerprint",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const fingerprint=$json.duplicateSearchText.split(' ').sort().join('|'); return [{ json: { ...$json, duplicateFingerprint: fingerprint } }];"
+      },
+      "position": [
+        1200,
+        0
+      ]
+    },
+    {
+      "id": "2d1c4557-45bf-4649-b63b-5ed23dbc8603",
+      "name": "Extract Search Keywords",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const keywords=[...new Set($json.duplicateSearchText.split(' ').filter(w=>w.length>3))].slice(0,12); return [{ json: { ...$json, duplicateKeywords: keywords } }];"
+      },
+      "position": [
+        1440,
+        0
+      ]
+    },
+    {
+      "id": "7332ae07-b841-41e2-9e8d-b689df7ec218",
+      "name": "Compare Available Ticket Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const sameId=Boolean($json.existingTicketId&&$json.existingTicketId===$json.ticketId); return [{ json: { ...$json, duplicateCandidate: sameId, duplicateMatchId: sameId?$json.existingTicketId:null } }];"
+      },
+      "position": [
+        1680,
+        0
+      ]
+    },
+    {
+      "id": "73ad3957-0a9d-4021-b4b2-c99ce65fb475",
+      "name": "Record Duplicate Check Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, deduplication: { checked: Boolean($json.existingTicketId), isDuplicate: Boolean($json.duplicateCandidate), fingerprint: $json.duplicateFingerprint, note: 'Connect a ticket database search to compare this fingerprint with stored tickets.' } } }];"
+      },
+      "position": [
+        1920,
+        0
+      ]
+    },
+    {
+      "id": "b79d4a1e-0a62-4e12-8603-aacc51ef2375",
+      "name": "Append Workflow Trace",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const workflowId = $workflow.name.match(/^WF\\d+/)?.[0] ?? 'WF';\nreturn [{ json: { ...$json, workflowTrace: [...new Set([...($json.workflowTrace ?? []), workflowId])], stepTrace: [...($json.stepTrace ?? []), 'workflow-complete'] } }];"
+      },
+      "position": [
+        2160,
+        0
+      ]
+    },
+    {
+      "id": "bd5449e5-a726-4062-8a57-318f8511df9b",
+      "name": "Build Result Envelope",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "return [{ json: { ...$json, workflowResult: { workflow: $workflow.name, ticketId: $json.ticketId, processedAt: new Date().toISOString(), success: true } } }];"
+      },
+      "position": [
+        2400,
+        0
+      ]
+    },
+    {
+      "id": "04dcdf00-b541-45d3-bccb-387026ebb1b7",
+      "name": "Call Next Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "parameters": {
         "method": "POST",
         "url": "http://localhost:5678/webhook/support-response",
@@ -40,19 +161,19 @@
         "rawContentType": "application/json",
         "body": "={{ JSON.stringify($json) }}",
         "options": {
-          "timeout": 10000
+          "timeout": 30000
         }
       },
-      "id": "8d13d0c9-8f9e-43e3-8313-a2c6f45e70b0",
-      "name": "Call Next Workflow",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
       "position": [
-        500,
+        2640,
         0
       ]
     },
     {
+      "id": "a0e3988e-1ae3-4adb-8863-c322f2dd8a1a",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ $json }}",
@@ -60,12 +181,8 @@
           "responseCode": 200
         }
       },
-      "id": "a23dbcfc-f03b-4547-ab7d-400e714edf30",
-      "name": "Respond",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
       "position": [
-        760,
+        2880,
         0
       ]
     }
@@ -75,14 +192,113 @@
       "main": [
         [
           {
-            "node": "Process Ticket",
+            "node": "Normalize Input",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Process Ticket": {
+    "Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "Validate Required Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Required Fields": {
+      "main": [
+        [
+          {
+            "node": "Normalize Ticket Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Ticket Metadata": {
+      "main": [
+        [
+          {
+            "node": "Normalize Duplicate Search Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Duplicate Search Text": {
+      "main": [
+        [
+          {
+            "node": "Create Duplicate Fingerprint",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Duplicate Fingerprint": {
+      "main": [
+        [
+          {
+            "node": "Extract Search Keywords",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Search Keywords": {
+      "main": [
+        [
+          {
+            "node": "Compare Available Ticket Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compare Available Ticket Context": {
+      "main": [
+        [
+          {
+            "node": "Record Duplicate Check Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Duplicate Check Result": {
+      "main": [
+        [
+          {
+            "node": "Append Workflow Trace",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append Workflow Trace": {
+      "main": [
+        [
+          {
+            "node": "Build Result Envelope",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Result Envelope": {
       "main": [
         [
           {
@@ -97,7 +313,7 @@
       "main": [
         [
           {
-            "node": "Respond",
+            "node": "Respond to Webhook",
             "type": "main",
             "index": 0
           }
@@ -110,7 +326,7 @@
     "executionOrder": "v1",
     "saveManualExecutions": true
   },
-  "versionId": "f375e207-7d4e-4ca5-b359-6e7aadd16b41",
+  "versionId": "89873f61-8d85-4517-b754-44f2750a0c83",
   "meta": {
     "templateCredsSetupCompleted": true
   },
