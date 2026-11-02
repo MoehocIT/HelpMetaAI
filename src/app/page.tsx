@@ -152,6 +152,33 @@ const guides: Record<string, Guide> = {
   },
 };
 
+const knowledgeCards = [
+  { key: "wifi", icon: "⌁", color: "blue", description: "Kiểm tra kết nối, DNS và cấu hình mạng." },
+  { key: "account", icon: "♙", color: "purple", description: "Khôi phục tài khoản và xử lý lỗi đăng nhập." },
+  { key: "performance", icon: "▣", color: "orange", description: "Kiểm tra ứng dụng, bộ nhớ và dung lượng máy." },
+  { key: "software", icon: "▧", color: "green", description: "Cài đặt an toàn và xử lý lỗi ứng dụng." },
+  { key: "hardware", icon: "▤", color: "orange", description: "Xử lý sự cố máy in, màn hình và thiết bị." },
+  { key: "security", icon: "◇", color: "purple", description: "Nhận biết dấu hiệu đáng ngờ và báo sự cố." },
+] as const;
+
+const categoryLabels: Record<string, string> = {
+  Network: "Mạng & kết nối",
+  Hardware: "Phần cứng",
+  Software: "Phần mềm",
+  "Account & Access": "Tài khoản & truy cập",
+  Security: "Bảo mật",
+  Other: "Khác",
+  Unassigned: "Chưa phân loại",
+};
+
+function matchesKnowledgeSearch(key: string, searchTerm: string) {
+  const guide = guides[key];
+  const card = knowledgeCards.find((item) => item.key === key);
+  return `${guide.title} ${guide.category} ${guide.intro} ${card?.description || ""}`
+    .toLowerCase()
+    .includes(searchTerm.trim().toLowerCase());
+}
+
 function mapApiTicket(raw: ApiTicket): Ticket {
   const priority = priorities.includes(raw.priority as PriorityLevel)
     ? (raw.priority as PriorityLevel)
@@ -221,6 +248,7 @@ export default function Home() {
   const [apiError, setApiError] = useState("");
 
   const [query, setQuery] = useState("");
+  const [knowledgeQuery, setKnowledgeQuery] = useState("");
   const [filter, setFilter] = useState("All");
   const [sortBy, setSortBy] = useState("recent");
 
@@ -624,6 +652,8 @@ export default function Home() {
             <button
               key={item.id}
               className={`nav-item ${page === item.id ? "active" : ""}`}
+              aria-current={page === item.id ? "page" : undefined}
+              title={item.label}
               onClick={() => { setPage(item.id); setMobileNavOpen(false); }}
             >
               <span className="nav-icon">{item.icon}</span>
@@ -706,7 +736,7 @@ export default function Home() {
             <>
               <div className="page-heading">
                 <div>
-                  <div className="eyebrow">WORKSPACE OVERVIEW</div>
+                  <div className="eyebrow">TỔNG QUAN KHÔNG GIAN LÀM VIỆC</div>
                   <h1>
                     Chào buổi tối, Phương{" "}
                     <span className="wave">✦</span>
@@ -812,8 +842,8 @@ export default function Home() {
                 <section className="panel ticket-panel">
                   <div className="panel-heading">
                     <div>
-                      <h2>Ticket gần đây</h2>
-                      <p>Theo dõi các yêu cầu hỗ trợ mới nhất</p>
+                      <h2>Ticket cần chú ý</h2>
+                      <p>Ưu tiên các sự cố cần được xử lý sớm</p>
                     </div>
 
                     <button
@@ -839,7 +869,7 @@ export default function Home() {
                         {ticketsLoading ? (
                           <tr>
                             <td colSpan={4} className="empty-state">
-                              Đang tải ticket...
+                              <span className="loading-indicator" /> Đang tải ticket...
                             </td>
                           </tr>
                         ) : (
@@ -882,7 +912,12 @@ export default function Home() {
                         {!ticketsLoading && tickets.length === 0 && (
                           <tr>
                             <td colSpan={4} className="empty-state">
-                              Chưa có ticket nào.
+                              <div className="empty-state-content">
+                                <span className="empty-state-icon">▤</span>
+                                <strong>Chưa có ticket nào</strong>
+                                <span>Tạo yêu cầu đầu tiên để đội IT có thể hỗ trợ bạn.</span>
+                                <button type="button" onClick={() => setShowNewTicket(true)}>＋ Tạo ticket</button>
+                              </div>
                             </td>
                           </tr>
                         )}
@@ -896,7 +931,7 @@ export default function Home() {
                     <div className="ai-orb">✳</div>
                     <div>
                       <span className="online-label">
-                        <i /> AI ASSISTANT
+                        <i /> TRỢ LÝ AI
                       </span>
                       <h2>HelpMate AI</h2>
                       <p>Trợ lý kỹ thuật của bạn</p>
@@ -1005,7 +1040,7 @@ export default function Home() {
             <>
               <div className="page-heading">
                 <div>
-                  <div className="eyebrow">SUPPORT CENTER</div>
+                  <div className="eyebrow">TRUNG TÂM HỖ TRỢ</div>
                   <h1>Quản lý ticket</h1>
                   <p>
                     Nhấn vào một ticket để xem chi tiết yêu cầu hỗ trợ.
@@ -1035,8 +1070,8 @@ export default function Home() {
                   <div className="search-box">
                     <span>⌕</span>
                     <input
-                      value={query}
-                      onChange={(event) => setQuery(event.target.value)}
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
                       placeholder="Tìm theo mã, vấn đề, đội phụ trách..."
                     />
                   </div>
@@ -1074,7 +1109,7 @@ export default function Home() {
                       {ticketsLoading ? (
                         <tr>
                           <td colSpan={6} className="empty-state">
-                            Đang tải ticket...
+                            <span className="loading-indicator" /> Đang tải danh sách ticket...
                           </td>
                         </tr>
                       ) : (
@@ -1092,7 +1127,7 @@ export default function Home() {
                               </span>
                             </td>
 
-                            <td>{ticket.category}</td>
+                              <td>{categoryLabels[ticket.category] || ticket.category}</td>
 
                             <td>
                               <Priority priority={ticket.priority} />
@@ -1126,7 +1161,12 @@ export default function Home() {
                       {!ticketsLoading && visibleTickets.length === 0 && (
                         <tr>
                           <td colSpan={6} className="empty-state">
-                            Không tìm thấy ticket phù hợp.
+                            <div className="empty-state-content">
+                              <span className="empty-state-icon">⌕</span>
+                              <strong>Không tìm thấy ticket phù hợp</strong>
+                              <span>Thử đổi từ khóa hoặc bộ lọc trạng thái.</span>
+                              {(query || filter !== "All") && <button type="button" onClick={() => { setQuery(""); setFilter("All"); }}>Xóa bộ lọc</button>}
+                            </div>
                           </td>
                         </tr>
                       )}
@@ -1146,7 +1186,7 @@ export default function Home() {
             <>
               <div className="page-heading">
                 <div>
-                  <div className="eyebrow">AI-POWERED SUPPORT</div>
+                  <div className="eyebrow">HỖ TRỢ CÙNG TRÍ TUỆ NHÂN TẠO</div>
                   <h1>Trợ lý AI</h1>
                   <p>
                     Mô tả vấn đề của bạn — cùng tìm giải pháp từng bước.
@@ -1154,7 +1194,7 @@ export default function Home() {
                 </div>
 
                 <span className="system-status">
-                  <i /> Trợ lý hỗ trợ
+                  <i /> Sẵn sàng hỗ trợ
                 </span>
               </div>
 
@@ -1199,7 +1239,7 @@ export default function Home() {
                     <div className="message-row">
                       <div className="message-avatar">✳</div>
                       <div className="message-bubble ai">
-                        HelpMate AI đang suy nghĩ...
+                        HelpMate AI đang tìm hướng hỗ trợ...
                       </div>
                     </div>
                   )}
@@ -1270,7 +1310,7 @@ export default function Home() {
             <>
               <div className="page-heading">
                 <div>
-                  <div className="eyebrow">SELF-SERVICE CENTER</div>
+                  <div className="eyebrow">TỰ TÌM HƯỚNG DẪN</div>
                   <h1>Kho kiến thức</h1>
                   <p>
                     Hướng dẫn thực tế giúp bạn tự xử lý các sự cố CNTT phổ biến.
@@ -1280,7 +1320,7 @@ export default function Home() {
 
               <div className="knowledge-hero">
                 <div>
-                  <span className="online-label">✦ KNOWLEDGE BASE</span>
+                  <span className="online-label">✦ THƯ VIỆN HƯỚNG DẪN</span>
                   <h2>Tìm câu trả lời, nhanh hơn.</h2>
                   <p>
                     Khám phá hướng dẫn và giải pháp từ đội ngũ IT.
@@ -1289,9 +1329,9 @@ export default function Home() {
                   <div className="hero-search">
                     <span>⌕</span>
                     <input
-                      value={query}
-                      onChange={(event) => setQuery(event.target.value)}
-                      placeholder="Bạn đang cần hỗ trợ điều gì?"
+                      value={knowledgeQuery}
+                      onChange={(event) => setKnowledgeQuery(event.target.value)}
+                      placeholder="Tìm theo sự cố, tài khoản, Wi-Fi..."
                     />
                   </div>
                 </div>
@@ -1303,69 +1343,21 @@ export default function Home() {
 
               <div className="section-title">
                 <h2>Danh mục hướng dẫn</h2>
-                <span>06 hướng dẫn thực tế</span>
+                <span>{knowledgeCards.filter(({ key }) => matchesKnowledgeSearch(key, knowledgeQuery)).length} hướng dẫn</span>
               </div>
 
               <div className="knowledge-grid large-knowledge">
-                <KnowledgeCard
-                  icon="⌁"
-                  category="MẠNG & KẾT NỐI"
-                  title="Khắc phục sự cố Wi-Fi"
-                  desc="Kiểm tra kết nối, DNS, router và cấu hình mạng."
-                  color="blue"
-                  onClick={() => setSelectedGuide(guides.wifi)}
-                />
-
-                <KnowledgeCard
-                  icon="♙"
-                  category="TÀI KHOẢN"
-                  title="Đăng nhập & mật khẩu"
-                  desc="Khôi phục tài khoản và xử lý lỗi xác thực."
-                  color="purple"
-                  onClick={() => setSelectedGuide(guides.account)}
-                />
-
-                <KnowledgeCard
-                  icon="▣"
-                  category="HIỆU NĂNG"
-                  title="Máy tính chạy chậm"
-                  desc="Kiểm tra bộ nhớ, ứng dụng nền và dung lượng."
-                  color="orange"
-                  onClick={() => setSelectedGuide(guides.performance)}
-                />
-
-                <KnowledgeCard
-                  icon="▧"
-                  category="PHẦN MỀM"
-                  title="Cài đặt phần mềm"
-                  desc="Các bước cài đặt và xử lý lỗi ứng dụng cơ bản."
-                  color="green"
-                  onClick={() => setSelectedGuide(guides.software)}
-                />
-
-                <KnowledgeCard
-                  icon="▤"
-                  category="PHẦN CỨNG"
-                  title="Thiết bị ngoại vi"
-                  desc="Xử lý sự cố máy in, bàn phím và màn hình."
-                  color="orange"
-                  onClick={() => setSelectedGuide(guides.hardware)}
-                />
-
-                <KnowledgeCard
-                  icon="◇"
-                  category="BẢO MẬT"
-                  title="An toàn tài khoản"
-                  desc="Nhận biết dấu hiệu đáng ngờ và báo cáo sự cố."
-                  color="purple"
-                  onClick={() => setSelectedGuide(guides.security)}
-                />
+                {knowledgeCards.filter(({ key }) => matchesKnowledgeSearch(key, knowledgeQuery)).map(({ key, icon, color, description }) => {
+                  const guide = guides[key];
+                  return <KnowledgeCard key={key} icon={icon} category={guide.category} title={guide.title} desc={description} color={color} onClick={() => setSelectedGuide(guide)} />;
+                })}
+                {knowledgeCards.every(({ key }) => !matchesKnowledgeSearch(key, knowledgeQuery)) && <div className="knowledge-empty"><span>⌕</span><strong>Chưa tìm thấy hướng dẫn phù hợp</strong><p>Thử tìm với từ khóa khác như Wi-Fi, tài khoản hoặc phần mềm.</p></div>}
               </div>
             </>
           )}
 
           <footer className="footer">
-            <span>© 2026 HelpMate AI · IT Support Workspace</span>
+            <span>© 2026 HelpMate AI · Trung tâm hỗ trợ CNTT</span>
             <span>
               Được thiết kế để hỗ trợ bạn tốt hơn <b>✳</b>
             </span>
@@ -1521,7 +1513,7 @@ export default function Home() {
             <div className="ticket-detail-grid">
               <div className="ticket-detail-item">
                 <span>Danh mục</span>
-                <strong>{selectedTicket.category}</strong>
+                <strong>{categoryLabels[selectedTicket.category] || selectedTicket.category}</strong>
               </div>
 
               <div className="ticket-detail-item">
