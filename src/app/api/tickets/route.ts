@@ -230,6 +230,7 @@ export async function POST(request: Request) {
       aiReason: classification.reason,
       aiSuggestion: classification.suggestion,
       status: 'Open',
+      updatedAt: new Date(),
     });
 
     const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL;

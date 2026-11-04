@@ -11,6 +11,7 @@ export interface ITicket extends Document {
   aiSuggestion: string;
   status: string;
   createdAt: Date;
+  updatedAt?: Date;
 }
 
 const TicketSchema: Schema = new Schema({
@@ -24,6 +25,7 @@ const TicketSchema: Schema = new Schema({
   aiSuggestion: { type: String, default: '' },
   status: { type: String, enum: ['Open', 'In Progress', 'Resolved'], default: 'Open' },
   createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date },
 });
 
 export default mongoose.models.Ticket || mongoose.model<ITicket>('Ticket', TicketSchema);

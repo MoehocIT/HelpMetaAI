@@ -24,6 +24,8 @@ type Ticket = {
   aiReason?: string;
   aiSuggestion?: string;
   createdAt?: string;
+  updatedAt?: string;
+  updatedDate?: string;
 };
 
 type ApiTicket = {
@@ -37,6 +39,7 @@ type ApiTicket = {
   aiSuggestion?: string;
   status?: string;
   createdAt?: string;
+  updatedAt?: string;
 };
 
 type ChatMessage = {
@@ -203,6 +206,11 @@ function mapApiTicket(raw: ApiTicket): Ticket {
     status,
     owner: raw.assignedTeam || "IT General",
     date,
+    updatedAt: raw.updatedAt || raw.createdAt,
+    updatedDate:
+      raw.updatedAt && !Number.isNaN(new Date(raw.updatedAt).getTime())
+        ? new Date(raw.updatedAt).toLocaleDateString("vi-VN")
+        : date,
     description: raw.description || "",
     aiReason: raw.aiReason || "",
     aiSuggestion: raw.aiSuggestion || "",
@@ -398,6 +406,11 @@ export default function Home() {
       if (sortBy === "oldest") {
         return (a.createdAt || "").localeCompare(b.createdAt || "");
       }
+      if (sortBy === "updated") {
+        return (b.updatedAt || b.createdAt || "").localeCompare(
+          a.updatedAt || a.createdAt || ""
+        );
+      }
       return (b.createdAt || "").localeCompare(a.createdAt || "");
     });
   }, [tickets, query, filter, sortBy]);
@@ -485,17 +498,24 @@ export default function Home() {
 
     if (!currentTicket || currentTicket.status === status) return;
 
+    const updatedAt = new Date().toISOString();
+    const updatedDate = new Date(updatedAt).toLocaleDateString("vi-VN");
+
     setUpdatingTicketId(ticketId);
 
     // Cập nhật giao diện trước để người dùng thấy phản hồi ngay.
     setTickets((old) =>
       old.map((ticket) =>
-        ticket.id === ticketId ? { ...ticket, status } : ticket
+        ticket.id === ticketId
+          ? { ...ticket, status, updatedAt, updatedDate }
+          : ticket
       )
     );
 
     setSelectedTicket((old) =>
-      old?.id === ticketId ? { ...old, status } : old
+      old?.id === ticketId
+        ? { ...old, status, updatedAt, updatedDate }
+        : old
     );
 
     try {
@@ -1089,6 +1109,7 @@ export default function Home() {
                   </select>
                   <select aria-label="Sắp xếp ticket" value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
                     <option value="recent">Mới nhất</option>
+                    <option value="updated">Vừa cập nhật</option>
                     <option value="oldest">Cũ nhất</option>
                     <option value="priority">Ưu tiên cao trước</option>
                   </select>
@@ -1104,13 +1125,14 @@ export default function Home() {
                         <th>TRẠNG THÁI</th>
                         <th>ĐỘI PHỤ TRÁCH</th>
                         <th>NGÀY TẠO</th>
+                        <th>CẬP NHẬT</th>
                       </tr>
                     </thead>
 
                     <tbody>
                       {ticketsLoading ? (
                         <tr>
-                          <td colSpan={6} className="empty-state">
+                          <td colSpan={7} className="empty-state">
                             <span className="loading-indicator" /> Đang tải danh sách ticket...
                           </td>
                         </tr>
@@ -1156,13 +1178,14 @@ export default function Home() {
 
                             <td>{ticket.owner}</td>
                             <td>{ticket.date}</td>
+                            <td>{ticket.updatedDate || ticket.date}</td>
                           </tr>
                         ))
                       )}
 
                       {!ticketsLoading && visibleTickets.length === 0 && (
                         <tr>
-                          <td colSpan={6} className="empty-state">
+                          <td colSpan={7} className="empty-state">
                             <div className="empty-state-content">
                               <span className="empty-state-icon">⌕</span>
                               <strong>Không tìm thấy ticket phù hợp</strong>
@@ -1531,6 +1554,10 @@ export default function Home() {
               <div className="ticket-detail-item">
                 <span>Ngày tạo</span>
                 <strong>{selectedTicket.date}</strong>
+              </div>
+              <div className="ticket-detail-item">
+                <span>Cập nhật gần nhất</span>
+                <strong>{selectedTicket.updatedDate || selectedTicket.date}</strong>
               </div>
             </div>
 

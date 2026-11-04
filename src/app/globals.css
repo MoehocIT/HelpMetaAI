@@ -207,3 +207,6 @@ html,body{font-size:16px}
 .ticket-table-wrap{scrollbar-color:#d5d8e5 transparent;scrollbar-width:thin}
 .status-select{min-width:136px}
 @media(max-width:680px){.status-select{min-width:128px}.knowledge-empty{min-height:180px}.empty-state-content>span:not(.empty-state-icon){max-width:260px;line-height:1.55}}
+.ticket-table.full-table td:last-child{color:#5962a8;font-weight:600}
+.ticket-detail-grid{gap:10px}
+@media(max-width:520px){.ticket-detail-grid{grid-template-columns:1fr}.ticket-detail-item{flex-direction:row;justify-content:space-between;align-items:center}.ticket-detail-item>strong{max-width:62%;text-align:right}}
