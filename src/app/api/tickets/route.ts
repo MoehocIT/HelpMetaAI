@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import connectDB from '../../../lib/mongodb';
+import connectDB, { isMongoConnectionError } from '../../../lib/mongodb';
 import Ticket from '../../../models/Ticket';
 
 
@@ -163,12 +163,17 @@ export async function GET() {
       { status: 200 }
     );
   } catch (error: unknown) {
-    const message =
-      error instanceof Error ? error.message : 'Không thể tải ticket.';
+    const unavailable = isMongoConnectionError(error);
+    console.error('Lỗi tải ticket:', error);
 
     return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
+      {
+        success: false,
+        error: unavailable
+          ? 'Không thể kết nối cơ sở dữ liệu. Hãy kiểm tra MongoDB Atlas, allowlist IP và kết nối mạng.'
+          : 'Không thể tải ticket. Hãy thử lại sau.',
+      },
+      { status: unavailable ? 503 : 500 }
     );
   }
 }
@@ -262,10 +267,12 @@ export async function POST(request: Request) {
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : 'Tạo ticket thất bại.';
+    const databaseUnavailable = isMongoConnectionError(error);
 
     console.error('Lỗi tạo ticket:', message);
 
     const status =
+      databaseUnavailable ||
       message.includes('Ollama') ||
       message.includes('fetch failed') ||
       message.includes('ECONNREFUSED')
@@ -273,7 +280,12 @@ export async function POST(request: Request) {
         : 500;
 
     return NextResponse.json(
-      { success: false, error: message },
+      {
+        success: false,
+        error: databaseUnavailable
+          ? 'Không thể kết nối cơ sở dữ liệu. Hãy kiểm tra MongoDB Atlas, allowlist IP và kết nối mạng.'
+          : message,
+      },
       { status }
     );
   }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import connectDB from "../../../../lib/mongodb";
+import connectDB, { isMongoConnectionError } from "../../../../lib/mongodb";
 import Ticket from "../../../../models/Ticket";
 
 export const runtime = "nodejs";
@@ -151,18 +151,16 @@ export async function PATCH(
     );
   } catch (error: unknown) {
     console.error("PATCH /api/tickets/[id] error:", error);
-
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Đã xảy ra lỗi máy chủ.";
+    const unavailable = isMongoConnectionError(error);
 
     return NextResponse.json(
       {
         success: false,
-        error: message,
+        error: unavailable
+          ? "Không thể kết nối cơ sở dữ liệu. Hãy kiểm tra MongoDB Atlas, allowlist IP và kết nối mạng."
+          : "Không thể cập nhật ticket. Hãy thử lại sau.",
       },
-      { status: 500 }
+      { status: unavailable ? 503 : 500 }
     );
   }
 }

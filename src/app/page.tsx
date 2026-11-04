@@ -341,7 +341,9 @@ export default function Home() {
       const message = getErrorMessage(error, "");
       const normalized = message.toLowerCase();
       setApiError(
-        normalized.includes("mongodb") ||
+        message.includes("Không thể kết nối cơ sở dữ liệu")
+          ? message
+          : normalized.includes("mongodb") ||
           normalized.includes("mongo") ||
           normalized.includes("econnrefused") ||
           normalized.includes("timed out") ||
