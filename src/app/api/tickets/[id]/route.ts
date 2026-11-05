@@ -2,9 +2,6 @@ import { NextResponse } from "next/server";
 import connectDB, { isMongoConnectionError } from "../../../../lib/mongodb";
 import Ticket from "../../../../models/Ticket";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
 // Những trạng thái hợp lệ của ticket
 const ALLOWED_STATUSES = ["Open", "In Progress", "Resolved"] as const;
 

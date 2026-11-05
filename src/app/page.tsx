@@ -3,7 +3,6 @@
 import {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -40,6 +39,22 @@ type ApiTicket = {
   status?: string;
   createdAt?: string;
   updatedAt?: string;
+};
+
+type TicketSummary = {
+  total: number;
+  open: number;
+  inProgress: number;
+  resolved: number;
+  urgent: number;
+};
+
+const emptyTicketSummary: TicketSummary = {
+  total: 0,
+  open: 0,
+  inProgress: 0,
+  resolved: 0,
+  urgent: 0,
 };
 
 type ChatMessage = {
@@ -252,10 +267,17 @@ export default function Home() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [dashboardTickets, setDashboardTickets] = useState<Ticket[]>([]);
+  const [ticketSummary, setTicketSummary] = useState<TicketSummary>(emptyTicketSummary);
+  const [ticketTotal, setTicketTotal] = useState(0);
+  const [ticketTotalPages, setTicketTotalPages] = useState(1);
+  const [ticketPage, setTicketPage] = useState(1);
+  const [refreshTicketList, setRefreshTicketList] = useState(0);
   const [ticketsLoading, setTicketsLoading] = useState(true);
   const [apiError, setApiError] = useState("");
 
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [knowledgeQuery, setKnowledgeQuery] = useState("");
   const [filter, setFilter] = useState("All");
   const [sortBy, setSortBy] = useState("recent");
@@ -286,6 +308,7 @@ export default function Home() {
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const latestTicketRequest = useRef(0);
 
   const notify = useCallback((text: string) => {
     setToast(text);
@@ -315,37 +338,81 @@ export default function Home() {
     });
   }, [messages, sendingMessage]);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(query.trim());
+      setTicketPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query]);
+
   const loadTickets = useCallback(async () => {
+    const requestId = ++latestTicketRequest.current;
     setTicketsLoading(true);
 
     try {
-      const response = await fetch("/api/tickets", {
+      const params = new URLSearchParams({
+        page: String(ticketPage),
+        limit: "10",
+        sort: sortBy,
+      });
+      if (debouncedQuery) params.set("search", debouncedQuery);
+      if (filter !== "All") params.set("status", filter);
+
+      const response = await fetch(`/api/tickets?${params.toString()}`, {
         method: "GET",
         cache: "no-store",
         signal: AbortSignal.timeout(12000),
       });
 
       const result = await readApiResponse(response);
+      if (requestId !== latestTicketRequest.current) return;
 
       const data: ApiTicket[] = Array.isArray(result.data)
         ? (result.data as ApiTicket[])
         : [];
+      const priorityData: ApiTicket[] = Array.isArray(result.priorityTickets)
+        ? (result.priorityTickets as ApiTicket[])
+        : [];
+      const meta = result.meta as {
+        page?: number;
+        total?: number;
+        totalPages?: number;
+        summary?: Partial<TicketSummary>;
+      } | undefined;
 
       const mappedTickets = data
         .filter((ticket) => typeof ticket.ticketId === "string")
         .map(mapApiTicket);
+      const mappedPriorityTickets = priorityData
+        .filter((ticket) => typeof ticket.ticketId === "string")
+        .map(mapApiTicket);
 
       setTickets(mappedTickets);
+      setDashboardTickets(mappedPriorityTickets);
+      setTicketTotal(Number(meta?.total) || 0);
+      setTicketTotalPages(Math.max(1, Number(meta?.totalPages) || 1));
+      setTicketPage(Math.max(1, Number(meta?.page) || 1));
+      setTicketSummary({
+        total: Number(meta?.summary?.total) || 0,
+        open: Number(meta?.summary?.open) || 0,
+        inProgress: Number(meta?.summary?.inProgress) || 0,
+        resolved: Number(meta?.summary?.resolved) || 0,
+        urgent: Number(meta?.summary?.urgent) || 0,
+      });
       setApiError("");
 
       setSelectedTicket((current) => {
         if (!current) return null;
 
         return (
-          mappedTickets.find((ticket) => ticket.id === current.id) ?? current
+          mappedTickets.find((ticket) => ticket.id === current.id) ??
+          mappedPriorityTickets.find((ticket) => ticket.id === current.id) ??
+          current
         );
       });
     } catch (error) {
+      if (requestId !== latestTicketRequest.current) return;
       const message = getErrorMessage(error, "");
       const normalized = message.toLowerCase();
       setApiError(
@@ -362,58 +429,15 @@ export default function Home() {
           : "Không thể tải ticket từ máy chủ. Hãy thử lại; nếu lỗi tiếp diễn, kiểm tra nhật ký API."
       );
     } finally {
-      setTicketsLoading(false);
+      if (requestId === latestTicketRequest.current) setTicketsLoading(false);
     }
-  }, []);
+  }, [debouncedQuery, filter, sortBy, ticketPage, refreshTicketList]);
 
   useEffect(() => {
     void loadTickets();
   }, [loadTickets]);
 
-  const visibleTickets = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-
-    const filtered = tickets.filter((ticket) => {
-      const searchText = [
-        ticket.id,
-        ticket.title,
-        ticket.owner,
-        ticket.category,
-        ticket.description || "",
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      const matchesQuery = searchText.includes(normalizedQuery);
-
-      const matchesFilter =
-        filter === "All" || ticket.status === filter;
-
-      return matchesQuery && matchesFilter;
-    });
-
-    const priorityRank: Record<PriorityLevel, number> = {
-      Critical: 0,
-      High: 1,
-      Medium: 2,
-      Low: 3,
-    };
-
-    return filtered.sort((a, b) => {
-      if (sortBy === "priority") {
-        return priorityRank[a.priority] - priorityRank[b.priority];
-      }
-      if (sortBy === "oldest") {
-        return (a.createdAt || "").localeCompare(b.createdAt || "");
-      }
-      if (sortBy === "updated") {
-        return (b.updatedAt || b.createdAt || "").localeCompare(
-          a.updatedAt || a.createdAt || ""
-        );
-      }
-      return (b.createdAt || "").localeCompare(a.createdAt || "");
-    });
-  }, [tickets, query, filter, sortBy]);
+  const visibleTickets = tickets;
 
   function openTicket(ticket: Ticket) {
     setSelectedTicket(ticket);
@@ -461,16 +485,18 @@ export default function Home() {
       setNewTitle("");
       setNewDescription("");
 
-      await loadTickets();
-
       setPage("tickets");
+      setTicketPage(1);
       setFilter("All");
       setQuery("");
+      setDebouncedQuery("");
+      setSortBy("recent");
+      setRefreshTicketList((value) => value + 1);
 
       if (created?.ticketId) {
         notify(
           `Đã tạo ${created.ticketId}. ` +
-            `Phân loại: ${created.category || "Other"} · ` +
+            `Phân loại: ${categoryLabels[created.category || "Other"] || created.category || "Khác"} · ` +
             `Ưu tiên: ${created.priority || "Medium"}.`
         );
       } else {
@@ -547,6 +573,7 @@ export default function Home() {
         );
       }
 
+      setRefreshTicketList((value) => value + 1);
       notify("Đã cập nhật trạng thái ticket.");
     } catch (error) {
       setTickets(previousTickets);
@@ -683,11 +710,7 @@ export default function Home() {
 
               {item.id === "tickets" && (
                 <span className="nav-count">
-                  {
-                    tickets.filter(
-                      (ticket) => ticket.status !== "Resolved"
-                    ).length
-                  }
+                  {ticketSummary.open + ticketSummary.inProgress}
                 </span>
               )}
             </button>
@@ -786,14 +809,14 @@ export default function Home() {
                 </div>
               )}
 
-              {!apiError && !ticketsLoading && tickets.some((ticket) => ticket.priority === "Critical" || ticket.priority === "High") && (
+              {!apiError && !ticketsLoading && ticketSummary.urgent > 0 && (
                 <button
                   type="button"
                   className="priority-alert"
-                  onClick={() => { setPage("tickets"); setFilter("All"); setSortBy("priority"); }}
+                  onClick={() => { setPage("tickets"); setFilter("All"); setSortBy("priority"); setTicketPage(1); setQuery(""); setDebouncedQuery(""); }}
                 >
                   <span className="priority-alert-icon">!</span>
-                  <span><strong>Có ticket cần ưu tiên</strong><small>{tickets.filter((ticket) => ticket.priority === "Critical" || ticket.priority === "High").length} yêu cầu mức cao hoặc nghiêm trọng</small></span>
+                  <span><strong>Có ticket cần ưu tiên</strong><small>{ticketSummary.urgent} yêu cầu mức cao hoặc nghiêm trọng</small></span>
                   <b>Xem ticket →</b>
                 </button>
               )}
@@ -801,7 +824,7 @@ export default function Home() {
               <div className="stats-grid">
                 <StatCard
                   label="Tổng ticket"
-                  value={ticketsLoading ? "..." : String(tickets.length)}
+                  value={ticketsLoading ? "..." : String(ticketSummary.total)}
                   change="Từ cơ sở dữ liệu"
                   icon="▤"
                   tone="violet"
@@ -813,11 +836,7 @@ export default function Home() {
                   value={
                     ticketsLoading
                       ? "..."
-                      : String(
-                          tickets.filter(
-                            (ticket) => ticket.status === "Open"
-                          ).length
-                        )
+                    : String(ticketSummary.open)
                   }
                   change="Cần xử lý"
                   icon="◷"
@@ -830,11 +849,7 @@ export default function Home() {
                   value={
                     ticketsLoading
                       ? "..."
-                      : String(
-                          tickets.filter(
-                            (ticket) => ticket.status === "In Progress"
-                          ).length
-                        )
+                    : String(ticketSummary.inProgress)
                   }
                   change="Đang thực hiện"
                   icon="⟳"
@@ -847,11 +862,7 @@ export default function Home() {
                   value={
                     ticketsLoading
                       ? "..."
-                      : String(
-                          tickets.filter(
-                            (ticket) => ticket.status === "Resolved"
-                          ).length
-                        )
+                    : String(ticketSummary.resolved)
                   }
                   change="Hoàn tất"
                   icon="✓"
@@ -870,7 +881,7 @@ export default function Home() {
 
                     <button
                       className="text-button"
-                      onClick={() => setPage("tickets")}
+                      onClick={() => { setPage("tickets"); setFilter("All"); setSortBy("recent"); setTicketPage(1); setQuery(""); setDebouncedQuery(""); }}
                     >
                       Xem tất cả <span>→</span>
                     </button>
@@ -895,10 +906,7 @@ export default function Home() {
                             </td>
                           </tr>
                         ) : (
-                          [...tickets].sort((a, b) => {
-                            const rank: Record<PriorityLevel, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 };
-                            return rank[a.priority] - rank[b.priority];
-                          }).slice(0, 4).map((ticket) => (
+                          dashboardTickets.map((ticket) => (
                             <tr
                               key={ticket.id}
                               onClick={() => {
@@ -931,7 +939,7 @@ export default function Home() {
                           ))
                         )}
 
-                        {!ticketsLoading && tickets.length === 0 && (
+                        {!ticketsLoading && dashboardTickets.length === 0 && (
                           <tr>
                             <td colSpan={4} className="empty-state">
                               <div className="empty-state-content">
@@ -1100,14 +1108,14 @@ export default function Home() {
 
                   <select
                     value={filter}
-                    onChange={(event) => setFilter(event.target.value)}
+                    onChange={(event) => { setFilter(event.target.value); setTicketPage(1); }}
                   >
                     <option value="All">Tất cả trạng thái</option>
                     <option value="Open">Đang mở</option>
                     <option value="In Progress">Đang xử lý</option>
                     <option value="Resolved">Đã giải quyết</option>
                   </select>
-                  <select aria-label="Sắp xếp ticket" value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
+                  <select aria-label="Sắp xếp ticket" value={sortBy} onChange={(event) => { setSortBy(event.target.value); setTicketPage(1); }}>
                     <option value="recent">Mới nhất</option>
                     <option value="updated">Vừa cập nhật</option>
                     <option value="oldest">Cũ nhất</option>
@@ -1190,7 +1198,7 @@ export default function Home() {
                               <span className="empty-state-icon">⌕</span>
                               <strong>Không tìm thấy ticket phù hợp</strong>
                               <span>Thử đổi từ khóa hoặc bộ lọc trạng thái.</span>
-                              {(query || filter !== "All") && <button type="button" onClick={() => { setQuery(""); setFilter("All"); }}>Xóa bộ lọc</button>}
+                              {(query || filter !== "All") && <button type="button" onClick={() => { setQuery(""); setDebouncedQuery(""); setFilter("All"); setTicketPage(1); }}>Xóa bộ lọc</button>}
                             </div>
                           </td>
                         </tr>
@@ -1200,8 +1208,15 @@ export default function Home() {
                 </div>
 
                 <div className="table-footer">
-                  Hiển thị {visibleTickets.length} trên {tickets.length} ticket
+                  {ticketTotal === 0 ? "Không có ticket" : `Hiển thị ${(ticketPage - 1) * 10 + 1}–${Math.min(ticketPage * 10, ticketTotal)} trên ${ticketTotal} ticket`}
                   <span>Đồng bộ API · MongoDB</span>
+                </div>
+                <div className="pagination-bar" aria-label="Phân trang ticket">
+                  <span>Trang {ticketPage} / {ticketTotalPages}</span>
+                  <div>
+                    <button type="button" disabled={ticketsLoading || ticketPage <= 1} onClick={() => setTicketPage((page) => Math.max(1, page - 1))}>← Trước</button>
+                    <button type="button" disabled={ticketsLoading || ticketPage >= ticketTotalPages} onClick={() => setTicketPage((page) => Math.min(ticketTotalPages, page + 1))}>Tiếp →</button>
+                  </div>
                 </div>
               </section>
             </>

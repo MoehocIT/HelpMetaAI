@@ -210,3 +210,6 @@ html,body{font-size:16px}
 .ticket-table.full-table td:last-child{color:#5962a8;font-weight:600}
 .ticket-detail-grid{gap:10px}
 @media(max-width:520px){.ticket-detail-grid{grid-template-columns:1fr}.ticket-detail-item{flex-direction:row;justify-content:space-between;align-items:center}.ticket-detail-item>strong{max-width:62%;text-align:right}}
+.pagination-bar{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 20px;border-top:1px solid #edf0f5;color:#7b879a;font-size:12px}
+.pagination-bar>div{display:flex;gap:8px}.pagination-bar button{min-height:36px;padding:0 12px;border:1px solid #e2e6ef;border-radius:9px;background:#fff;color:#4b5670;font-size:12px;font-weight:700}.pagination-bar button:not(:disabled):hover{border-color:#c9c7f3;background:#f8f7ff;color:#514bc9}.pagination-bar button:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:560px){.pagination-bar{padding:12px 14px;font-size:11px}.pagination-bar button{padding:0 9px}.list-toolbar{gap:9px}}

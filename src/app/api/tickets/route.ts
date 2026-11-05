@@ -152,14 +152,122 @@ Nếu chưa đủ thông tin, hãy nêu điều cần kiểm tra thêm.
   return classification;
 }
 
-export async function GET() {
+const PAGE_SIZE_OPTIONS = [10, 20, 50];
+const VALID_STATUSES = ['Open', 'In Progress', 'Resolved'];
+
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+export async function GET(request: Request) {
   try {
     await connectDB();
 
-    const tickets = await Ticket.find({}).sort({ createdAt: -1 });
+    const { searchParams } = new URL(request.url);
+    const requestedPage = Math.max(1, Number.parseInt(searchParams.get('page') || '1', 10) || 1);
+    const requestedLimit = Number.parseInt(searchParams.get('limit') || '10', 10) || 10;
+    const limit = PAGE_SIZE_OPTIONS.includes(requestedLimit) ? requestedLimit : 10;
+    const search = (searchParams.get('search') || '').trim().slice(0, 120);
+    const status = searchParams.get('status') || 'All';
+    const sortBy = searchParams.get('sort') || 'recent';
+
+    const filters: Record<string, unknown>[] = [];
+    if (VALID_STATUSES.includes(status)) filters.push({ status });
+    if (search) {
+      const pattern = new RegExp(escapeRegex(search), 'i');
+      filters.push({
+        $or: [
+          { ticketId: pattern },
+          { title: pattern },
+          { description: pattern },
+          { category: pattern },
+          { assignedTeam: pattern },
+        ],
+      });
+    }
+    const query = filters.length ? { $and: filters } : {};
+
+    const [total, allTickets, open, inProgress, resolved, urgent] = await Promise.all([
+      Ticket.countDocuments(query),
+      Ticket.countDocuments({}),
+      Ticket.countDocuments({ status: 'Open' }),
+      Ticket.countDocuments({ status: 'In Progress' }),
+      Ticket.countDocuments({ status: 'Resolved' }),
+      Ticket.countDocuments({ priority: { $in: ['Critical', 'High'] }, status: { $ne: 'Resolved' } }),
+    ]);
+
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const page = Math.min(requestedPage, totalPages);
+    const skip = (page - 1) * limit;
+
+    const sort = sortBy === 'oldest'
+      ? { createdAt: 1 as const }
+      : sortBy === 'updated'
+        ? { updatedAt: -1 as const, createdAt: -1 as const }
+        : { createdAt: -1 as const };
+
+    const listQuery = sortBy === 'priority'
+      ? Ticket.aggregate([
+          { $match: query },
+          {
+            $addFields: {
+              __priorityOrder: {
+                $switch: {
+                  branches: [
+                    { case: { $eq: ['$priority', 'Critical'] }, then: 0 },
+                    { case: { $eq: ['$priority', 'High'] }, then: 1 },
+                    { case: { $eq: ['$priority', 'Medium'] }, then: 2 },
+                    { case: { $eq: ['$priority', 'Low'] }, then: 3 },
+                  ],
+                  default: 4,
+                },
+              },
+            },
+          },
+          { $sort: { __priorityOrder: 1, createdAt: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+          { $project: { __priorityOrder: 0 } },
+        ])
+      : Ticket.find(query).sort(sort).skip(skip).limit(limit).lean();
+
+    const [tickets, priorityTickets] = await Promise.all([
+      listQuery,
+      Ticket.aggregate([
+        {
+          $addFields: {
+            __priorityOrder: {
+              $switch: {
+                branches: [
+                  { case: { $eq: ['$priority', 'Critical'] }, then: 0 },
+                  { case: { $eq: ['$priority', 'High'] }, then: 1 },
+                  { case: { $eq: ['$priority', 'Medium'] }, then: 2 },
+                  { case: { $eq: ['$priority', 'Low'] }, then: 3 },
+                ],
+                default: 4,
+              },
+            },
+          },
+        },
+        { $sort: { __priorityOrder: 1, createdAt: -1 } },
+        { $limit: 4 },
+        { $project: { __priorityOrder: 0 } },
+      ]),
+    ]);
 
     return NextResponse.json(
-      { success: true, data: tickets },
+      {
+        success: true,
+        data: tickets,
+        priorityTickets,
+        meta: {
+          page,
+          limit,
+          total,
+          totalPages,
+          summary: { total: allTickets, open, inProgress, resolved, urgent },
+        },
+      },
       { status: 200 }
     );
   } catch (error: unknown) {
