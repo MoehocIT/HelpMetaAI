@@ -200,7 +200,7 @@ export async function GET(request: Request) {
     const page = Math.min(requestedPage, totalPages);
     const skip = (page - 1) * limit;
 
-    const sort = sortBy === 'oldest'
+    const sort: Record<string, 1 | -1> = sortBy === 'oldest'
       ? { createdAt: 1 as const }
       : sortBy === 'updated'
         ? { updatedAt: -1 as const, createdAt: -1 as const }
