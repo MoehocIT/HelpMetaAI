@@ -2,157 +2,36 @@
   "name": "WF08 - SLA Monitoring",
   "nodes": [
     {
-      "id": "28a536ab-204f-4a4b-b389-ba3a61cc89ee",
-      "name": "Webhook",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
       "parameters": {
         "httpMethod": "POST",
         "path": "sla-monitoring",
         "responseMode": "responseNode",
         "options": {}
       },
+      "id": "42a1e96e-d770-4806-a380-fb6ff5c2b5b9",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
       "position": [
         0,
         0
       ],
-      "webhookId": "56558ff6-4dc2-4df8-b46e-021828da8b6e"
+      "webhookId": "285729cc-2f0e-4bd4-9319-d4d0a995ca5b"
     },
     {
-      "id": "ced4048f-1b29-4f36-aead-52a0f1117955",
-      "name": "Normalize Input",
+      "parameters": {
+        "jsCode": "const hours={High:4,Medium:24,Low:72};\nconst created=new Date($json.createdAt??Date.now());\nconst due=new Date(created.getTime()+(hours[$json.priority]??24)*3600000);\nreturn [{json:{...$json,sla:{targetHours:hours[$json.priority]??24,dueAt:due.toISOString(),breached:Date.now()>due.getTime()},workflowTrace:[...($json.workflowTrace??[]),'WF08']}}];"
+      },
+      "id": "46309679-bd00-4ce4-a63c-a3ddac41b35c",
+      "name": "Process Ticket",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "parameters": {
-        "jsCode": "const payload = $json.body && typeof $json.body === 'object' ? { ...$json.body, ...$json } : $json;\nreturn [{ json: { ...payload, title: String(payload.title ?? '').trim(), description: String(payload.description ?? '').trim() } }];"
-      },
       "position": [
         240,
         0
       ]
     },
     {
-      "id": "c958338f-98ae-47ce-84b3-368526924a69",
-      "name": "Validate Required Fields",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "parameters": {
-        "jsCode": "if (!$json.title || !$json.description) throw new Error('Ticket title and description are required');\nreturn [{ json: { ...$json, validation: { valid: true, checkedAt: new Date().toISOString() } } }];"
-      },
-      "position": [
-        480,
-        0
-      ]
-    },
-    {
-      "id": "7f11d624-1277-4711-887a-9189c488079a",
-      "name": "Normalize Ticket Metadata",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "parameters": {
-        "jsCode": "return [{ json: { ...$json, ticketId: String($json.ticketId ?? ('TCK-' + Date.now())), status: String($json.status ?? 'Open'), workflowTrace: Array.isArray($json.workflowTrace) ? $json.workflowTrace : [], stepTrace: Array.isArray($json.stepTrace) ? $json.stepTrace : [] } }];"
-      },
-      "position": [
-        720,
-        0
-      ]
-    },
-    {
-      "id": "8798213f-62d2-4283-ad55-cfd3fe384faa",
-      "name": "Set SLA Target",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "parameters": {
-        "jsCode": "const hours={High:4,Medium:24,Low:72}; const targetHours=hours[$json.priority]??24; return [{ json: { ...$json, slaTargetHours: targetHours } }];"
-      },
-      "position": [
-        960,
-        0
-      ]
-    },
-    {
-      "id": "02a92c01-36ff-4bda-8bac-6b1b6c31fbd2",
-      "name": "Parse Ticket Creation Time",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "parameters": {
-        "jsCode": "const createdAt=new Date($json.createdAt??Date.now()); return [{ json: { ...$json, slaCreatedAt: Number.isNaN(createdAt.getTime())?new Date().toISOString():createdAt.toISOString() } }];"
-      },
-      "position": [
-        1200,
-        0
-      ]
-    },
-    {
-      "id": "aab1cb5e-c33e-4bb6-aafa-85f3a59e94ea",
-      "name": "Calculate SLA Due Time",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "parameters": {
-        "jsCode": "const due=new Date(new Date($json.slaCreatedAt).getTime()+$json.slaTargetHours*3600000); return [{ json: { ...$json, slaDueAt: due.toISOString() } }];"
-      },
-      "position": [
-        1440,
-        0
-      ]
-    },
-    {
-      "id": "5131463c-2dd0-47da-9f3b-af6c3319eddb",
-      "name": "Calculate SLA Elapsed Time",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "parameters": {
-        "jsCode": "const elapsed=Math.max(0,(Date.now()-new Date($json.slaCreatedAt).getTime())/3600000); return [{ json: { ...$json, slaElapsedHours: Number(elapsed.toFixed(2)) } }];"
-      },
-      "position": [
-        1680,
-        0
-      ]
-    },
-    {
-      "id": "80a75ff3-d61a-4f3d-8cd3-76cf7d6b82c2",
-      "name": "Evaluate SLA State",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "parameters": {
-        "jsCode": "const breached=Date.now()>new Date($json.slaDueAt).getTime()&&!['Resolved','Closed'].includes($json.status); return [{ json: { ...$json, sla: { targetHours: $json.slaTargetHours, dueAt: $json.slaDueAt, elapsedHours: $json.slaElapsedHours, breached, monitoringMode: 'evaluated when workflow runs; add Schedule Trigger and database query for recurring monitoring' } } }];"
-      },
-      "position": [
-        1920,
-        0
-      ]
-    },
-    {
-      "id": "858acb4b-c502-46e0-a002-655e335fc5b5",
-      "name": "Append Workflow Trace",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "parameters": {
-        "jsCode": "const workflowId = $workflow.name.match(/^WF\\d+/)?.[0] ?? 'WF';\nreturn [{ json: { ...$json, workflowTrace: [...new Set([...($json.workflowTrace ?? []), workflowId])], stepTrace: [...($json.stepTrace ?? []), 'workflow-complete'] } }];"
-      },
-      "position": [
-        2160,
-        0
-      ]
-    },
-    {
-      "id": "a9225461-610a-46c0-ab26-f23998f098ef",
-      "name": "Build Result Envelope",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "parameters": {
-        "jsCode": "return [{ json: { ...$json, workflowResult: { workflow: $workflow.name, ticketId: $json.ticketId, processedAt: new Date().toISOString(), success: true } } }];"
-      },
-      "position": [
-        2400,
-        0
-      ]
-    },
-    {
-      "id": "980e6769-1e68-49f0-b6f3-021dc66cb411",
-      "name": "Call Next Workflow",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
       "parameters": {
         "method": "POST",
         "url": "http://localhost:5678/webhook/audit-log",
@@ -161,19 +40,19 @@
         "rawContentType": "application/json",
         "body": "={{ JSON.stringify($json) }}",
         "options": {
-          "timeout": 30000
+          "timeout": 10000
         }
       },
+      "id": "410e9d8d-c9f9-4b74-9643-531f8314469b",
+      "name": "Call Next Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
-        2640,
+        500,
         0
       ]
     },
     {
-      "id": "a04f2e09-462f-493b-8bed-b6bce1ab2fb3",
-      "name": "Respond to Webhook",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ $json }}",
@@ -181,8 +60,12 @@
           "responseCode": 200
         }
       },
+      "id": "b2aaab7d-1124-4aa6-a17b-4fa4e51a624a",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
       "position": [
-        2880,
+        760,
         0
       ]
     }
@@ -192,113 +75,14 @@
       "main": [
         [
           {
-            "node": "Normalize Input",
+            "node": "Process Ticket",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Normalize Input": {
-      "main": [
-        [
-          {
-            "node": "Validate Required Fields",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Validate Required Fields": {
-      "main": [
-        [
-          {
-            "node": "Normalize Ticket Metadata",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Normalize Ticket Metadata": {
-      "main": [
-        [
-          {
-            "node": "Set SLA Target",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Set SLA Target": {
-      "main": [
-        [
-          {
-            "node": "Parse Ticket Creation Time",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Parse Ticket Creation Time": {
-      "main": [
-        [
-          {
-            "node": "Calculate SLA Due Time",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Calculate SLA Due Time": {
-      "main": [
-        [
-          {
-            "node": "Calculate SLA Elapsed Time",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Calculate SLA Elapsed Time": {
-      "main": [
-        [
-          {
-            "node": "Evaluate SLA State",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Evaluate SLA State": {
-      "main": [
-        [
-          {
-            "node": "Append Workflow Trace",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Append Workflow Trace": {
-      "main": [
-        [
-          {
-            "node": "Build Result Envelope",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Build Result Envelope": {
+    "Process Ticket": {
       "main": [
         [
           {
@@ -313,7 +97,7 @@
       "main": [
         [
           {
-            "node": "Respond to Webhook",
+            "node": "Respond",
             "type": "main",
             "index": 0
           }
@@ -326,7 +110,7 @@
     "executionOrder": "v1",
     "saveManualExecutions": true
   },
-  "versionId": "1b819442-0705-4e9b-832b-5773ff12b1a3",
+  "versionId": "2e903e1f-bffc-4316-8428-66d9e4550496",
   "meta": {
     "templateCredsSetupCompleted": true
   },

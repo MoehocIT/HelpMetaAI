@@ -2,157 +2,36 @@
   "name": "WF07 - High Priority Alert",
   "nodes": [
     {
-      "id": "e4f8861a-d72e-4fdc-aee9-87c767f4378d",
-      "name": "Webhook",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
       "parameters": {
         "httpMethod": "POST",
         "path": "high-priority-alert",
         "responseMode": "responseNode",
         "options": {}
       },
+      "id": "264a48da-7cc9-44c4-92d0-46d144a4f359",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
       "position": [
         0,
         0
       ],
-      "webhookId": "ff57e708-aa96-4db9-af60-16a724931fe7"
+      "webhookId": "94aeafbf-460b-47e3-97eb-de4250279456"
     },
     {
-      "id": "becb8604-4291-49d9-b687-b6b168af8452",
-      "name": "Normalize Input",
+      "parameters": {
+        "jsCode": "return [{json:{...$json,alert:{required:$json.priority==='High',sent:false,reason:$json.priority==='High'?'High-priority ticket requires notification configuration':'Priority does not require an alert'},workflowTrace:[...($json.workflowTrace??[]),'WF07']}}];"
+      },
+      "id": "a6cb7e71-2772-4c6d-abe6-0ce17156b725",
+      "name": "Process Ticket",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "parameters": {
-        "jsCode": "const payload = $json.body && typeof $json.body === 'object' ? { ...$json.body, ...$json } : $json;\nreturn [{ json: { ...payload, title: String(payload.title ?? '').trim(), description: String(payload.description ?? '').trim() } }];"
-      },
       "position": [
         240,
         0
       ]
     },
     {
-      "id": "438528e7-dd42-4586-a24e-f1ad09daa86f",
-      "name": "Validate Required Fields",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "parameters": {
-        "jsCode": "if (!$json.title || !$json.description) throw new Error('Ticket title and description are required');\nreturn [{ json: { ...$json, validation: { valid: true, checkedAt: new Date().toISOString() } } }];"
-      },
-      "position": [
-        480,
-        0
-      ]
-    },
-    {
-      "id": "7d35b5c6-be3f-43a6-b46f-3b2eaf970c50",
-      "name": "Normalize Ticket Metadata",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "parameters": {
-        "jsCode": "return [{ json: { ...$json, ticketId: String($json.ticketId ?? ('TCK-' + Date.now())), status: String($json.status ?? 'Open'), workflowTrace: Array.isArray($json.workflowTrace) ? $json.workflowTrace : [], stepTrace: Array.isArray($json.stepTrace) ? $json.stepTrace : [] } }];"
-      },
-      "position": [
-        720,
-        0
-      ]
-    },
-    {
-      "id": "5f2b29d0-c071-44b4-84ac-3ef01493d2f4",
-      "name": "Check High Priority",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "parameters": {
-        "jsCode": "return [{ json: { ...$json, highPriority: $json.priority==='High' } }];"
-      },
-      "position": [
-        960,
-        0
-      ]
-    },
-    {
-      "id": "5b856fd0-18fc-43ef-a4f7-c98922e00b45",
-      "name": "Build Alert Severity",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "parameters": {
-        "jsCode": "const severity=$json.priority==='High'?'critical':$json.priority==='Medium'?'normal':'low'; return [{ json: { ...$json, alertSeverity: severity } }];"
-      },
-      "position": [
-        1200,
-        0
-      ]
-    },
-    {
-      "id": "a8251309-4000-4209-970d-8e6be6d459fe",
-      "name": "Build Alert Recipients",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "parameters": {
-        "jsCode": "const recipients=$json.priority==='High'?['IT on-call','Support lead']:['Support queue']; return [{ json: { ...$json, alertRecipients: recipients } }];"
-      },
-      "position": [
-        1440,
-        0
-      ]
-    },
-    {
-      "id": "654fdce3-b2e1-45b0-b78f-ee1772183e67",
-      "name": "Build Alert Message",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "parameters": {
-        "jsCode": "return [{ json: { ...$json, alertMessage: 'Ticket ' + $json.ticketId + ' - ' + ($json.priority||'Unrated') + ' - ' + $json.title } }];"
-      },
-      "position": [
-        1680,
-        0
-      ]
-    },
-    {
-      "id": "eb8f3597-1e93-404f-8a94-15b16ff89361",
-      "name": "Prepare Alert Delivery Status",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "parameters": {
-        "jsCode": "return [{ json: { ...$json, alert: { required: $json.highPriority, sent: false, severity: $json.alertSeverity, recipients: $json.alertRecipients, message: $json.alertMessage, note: 'Configure an email/chat node and credentials to deliver alerts.' } } }];"
-      },
-      "position": [
-        1920,
-        0
-      ]
-    },
-    {
-      "id": "f16800ad-577d-48c4-a58c-a3c928278824",
-      "name": "Append Workflow Trace",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "parameters": {
-        "jsCode": "const workflowId = $workflow.name.match(/^WF\\d+/)?.[0] ?? 'WF';\nreturn [{ json: { ...$json, workflowTrace: [...new Set([...($json.workflowTrace ?? []), workflowId])], stepTrace: [...($json.stepTrace ?? []), 'workflow-complete'] } }];"
-      },
-      "position": [
-        2160,
-        0
-      ]
-    },
-    {
-      "id": "f87e8b09-2bad-4fc7-8659-1f5dc34e05b7",
-      "name": "Build Result Envelope",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "parameters": {
-        "jsCode": "return [{ json: { ...$json, workflowResult: { workflow: $workflow.name, ticketId: $json.ticketId, processedAt: new Date().toISOString(), success: true } } }];"
-      },
-      "position": [
-        2400,
-        0
-      ]
-    },
-    {
-      "id": "e46c4a96-df35-4936-a5b1-8a701cd8d9f5",
-      "name": "Call Next Workflow",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
       "parameters": {
         "method": "POST",
         "url": "http://localhost:5678/webhook/sla-monitoring",
@@ -161,19 +40,19 @@
         "rawContentType": "application/json",
         "body": "={{ JSON.stringify($json) }}",
         "options": {
-          "timeout": 30000
+          "timeout": 10000
         }
       },
+      "id": "f059a70d-ac86-4fda-b9b5-78abdf683a71",
+      "name": "Call Next Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
-        2640,
+        500,
         0
       ]
     },
     {
-      "id": "01113549-9de8-45a5-86ff-e02b3fb36e31",
-      "name": "Respond to Webhook",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ $json }}",
@@ -181,8 +60,12 @@
           "responseCode": 200
         }
       },
+      "id": "f5e553ce-0d57-4aa4-801f-009ef02887a3",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
       "position": [
-        2880,
+        760,
         0
       ]
     }
@@ -192,113 +75,14 @@
       "main": [
         [
           {
-            "node": "Normalize Input",
+            "node": "Process Ticket",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Normalize Input": {
-      "main": [
-        [
-          {
-            "node": "Validate Required Fields",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Validate Required Fields": {
-      "main": [
-        [
-          {
-            "node": "Normalize Ticket Metadata",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Normalize Ticket Metadata": {
-      "main": [
-        [
-          {
-            "node": "Check High Priority",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Check High Priority": {
-      "main": [
-        [
-          {
-            "node": "Build Alert Severity",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Build Alert Severity": {
-      "main": [
-        [
-          {
-            "node": "Build Alert Recipients",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Build Alert Recipients": {
-      "main": [
-        [
-          {
-            "node": "Build Alert Message",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Build Alert Message": {
-      "main": [
-        [
-          {
-            "node": "Prepare Alert Delivery Status",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Prepare Alert Delivery Status": {
-      "main": [
-        [
-          {
-            "node": "Append Workflow Trace",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Append Workflow Trace": {
-      "main": [
-        [
-          {
-            "node": "Build Result Envelope",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Build Result Envelope": {
+    "Process Ticket": {
       "main": [
         [
           {
@@ -313,7 +97,7 @@
       "main": [
         [
           {
-            "node": "Respond to Webhook",
+            "node": "Respond",
             "type": "main",
             "index": 0
           }
@@ -326,7 +110,7 @@
     "executionOrder": "v1",
     "saveManualExecutions": true
   },
-  "versionId": "bedb4c0e-4441-451c-8bd4-8ec5a36b2f5b",
+  "versionId": "90966929-6219-47f0-9d9e-35a9dce4841b",
   "meta": {
     "templateCredsSetupCompleted": true
   },
