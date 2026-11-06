@@ -76,7 +76,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "parameters": {
-        "jsCode": "const teams={Network:'Network Support',Hardware:'Hardware Support',Software:'Software Support','Account & Access':'Identity and Access Support',Security:'Security Operations',Other:'IT General'}; return [{ json: { ...$json, assignedTeam: $json.assignedTeam || teams[$json.category] } }];"
+        "jsCode": "const category = $json.category || 'Other'; const priority = $json.priority || 'Medium'; const baseTeams = { Network: 'Network Support', Hardware: 'Hardware Support', Software: 'Software Support', 'Account & Access': 'Identity and Access Support', Security: 'Security Operations', Other: 'IT General' }; let team = $json.assignedTeam || baseTeams[category] || baseTeams.Other; if (priority === 'Critical' || priority === 'High') { if (category === 'Security') team = 'Security Operations (Tier 2 Incident Response)'; else if (category === 'Network' || category === 'Hardware') team = 'Infrastructure Operations (Tier 2)'; else team = 'Senior IT Support Team'; } return [{ json: { ...$json, assignedTeam: team } }];"
       },
       "position": [
         1200,
@@ -89,7 +89,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "parameters": {
-        "jsCode": "const queues={Network:'queue-network',Hardware:'queue-hardware',Software:'queue-software','Account & Access':'queue-access',Security:'queue-security',Other:'queue-general'}; return [{ json: { ...$json, assignmentQueue: queues[$json.category] } }];"
+        "jsCode": "const priority = $json.priority || 'Medium'; const baseQueues = { Network: 'queue-network', Hardware: 'queue-hardware', Software: 'queue-software', 'Account & Access': 'queue-access', Security: 'queue-security', Other: 'queue-general' }; let queue = baseQueues[$json.category] || baseQueues.Other; if (priority === 'Critical' || priority === 'High') { queue = queue + '-escalated'; } return [{ json: { ...$json, assignmentQueue: queue } }];"
       },
       "position": [
         1440,
@@ -102,7 +102,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "parameters": {
-        "jsCode": "return [{ json: { ...$json, assignmentReason: 'Routed by category: ' + $json.category } }];"
+        "jsCode": "const priority = $json.priority || 'Medium'; const isEscalated = priority === 'Critical' || priority === 'High'; const reason = `Routed by category: ${$json.category}${isEscalated ? ' (Escalated tier for ' + priority + ' priority)' : ' (Standard L1 queue)'}`; return [{ json: { ...$json, assignmentReason: reason } }];"
       },
       "position": [
         1680,
@@ -115,7 +115,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "parameters": {
-        "jsCode": "return [{ json: { ...$json, assignment: { team: $json.assignedTeam, queue: $json.assignmentQueue, assigned: Boolean($json.assignedTeam) } } }];"
+        "jsCode": "const currentHour = new Date().getHours(); const isAfterHours = currentHour < 8 || currentHour >= 18; return [{ json: { ...$json, assignment: { team: $json.assignedTeam, queue: $json.assignmentQueue, assigned: Boolean($json.assignedTeam), shift: isAfterHours ? 'After-hours / On-call' : 'Standard Business Hours', assignedAt: new Date().toISOString() } } }];"
       },
       "position": [
         1920,
