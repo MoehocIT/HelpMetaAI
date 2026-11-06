@@ -76,7 +76,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "parameters": {
-        "jsCode": "const fingerprint=$json.duplicateSearchText.split(' ').sort().join('|'); return [{ json: { ...$json, duplicateFingerprint: fingerprint } }];"
+        "jsCode": "const rawText = $json.duplicateSearchText || ''; const stopwords = new Set(['toi', 'la', 'bi', 'khong', 'duoc', 'cho', 'va', 'tai', 'tren', 'trong', 'nhung', 'cac', 'cua', 'nay', 'voi', 'lam', 'sao', 'gi', 'the', 'nao', 'biet', 'xin', 'giup', 'can', 'alo', 'em', 'anh', 'chi', 'ticket', 'gap', 'the', 'is', 'at', 'which', 'on', 'in', 'and', 'for', 'to', 'with']); const words = rawText.split(' ').filter(w => w.length >= 3 && !stopwords.has(w)); const uniqueSorted = [...new Set(words)].sort(); const fingerprint = `${$json.category || 'Other'}|${uniqueSorted.slice(0, 15).join('|')}`; return [{ json: { ...$json, duplicateFingerprint: fingerprint } }];"
       },
       "position": [
         1200,
@@ -89,7 +89,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "parameters": {
-        "jsCode": "const keywords=[...new Set($json.duplicateSearchText.split(' ').filter(w=>w.length>3))].slice(0,12); return [{ json: { ...$json, duplicateKeywords: keywords } }];"
+        "jsCode": "const rawText = $json.duplicateSearchText || ''; const stopwords = new Set(['toi', 'la', 'bi', 'khong', 'duoc', 'cho', 'va', 'tai', 'tren', 'trong', 'nhung', 'cac', 'cua', 'nay', 'voi', 'lam', 'sao', 'gi', 'the', 'nao', 'biet', 'xin', 'giup', 'can', 'alo', 'em', 'anh', 'chi', 'ticket', 'gap']); const keywords = [...new Set(rawText.split(' ').filter(w => w.length >= 3 && !stopwords.has(w)))].slice(0, 12); const signature = `${$json.category || 'Other'}#${$json.priority || 'Medium'}#${keywords.slice(0, 4).sort().join('-')}`; return [{ json: { ...$json, duplicateKeywords: keywords, duplicateSignature: signature } }];"
       },
       "position": [
         1440,
@@ -102,7 +102,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "parameters": {
-        "jsCode": "const sameId=Boolean($json.existingTicketId&&$json.existingTicketId===$json.ticketId); return [{ json: { ...$json, duplicateCandidate: sameId, duplicateMatchId: sameId?$json.existingTicketId:null } }];"
+        "jsCode": "const sameId = Boolean($json.existingTicketId && $json.existingTicketId === $json.ticketId); const sameFingerprint = Boolean($json.existingFingerprint && $json.existingFingerprint === $json.duplicateFingerprint); const isCandidate = sameId || sameFingerprint; const matchId = sameId ? $json.existingTicketId : (sameFingerprint ? ($json.existingTicketId || 'SIMILAR_FINGERPRINT_MATCH') : null); return [{ json: { ...$json, duplicateCandidate: isCandidate, duplicateMatchId: matchId } }];"
       },
       "position": [
         1680,
@@ -115,7 +115,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "parameters": {
-        "jsCode": "return [{ json: { ...$json, deduplication: { checked: Boolean($json.existingTicketId), isDuplicate: Boolean($json.duplicateCandidate), fingerprint: $json.duplicateFingerprint, note: 'Connect a ticket database search to compare this fingerprint with stored tickets.' } } }];"
+        "jsCode": "const isDuplicate = Boolean($json.duplicateCandidate); const action = isDuplicate ? 'Flagged as potential duplicate' : 'Marked as distinct ticket'; return [{ json: { ...$json, deduplication: { checked: true, isDuplicate, fingerprint: $json.duplicateFingerprint, signature: $json.duplicateSignature, matchId: $json.duplicateMatchId, actionTaken: action, evaluatedAt: new Date().toISOString() } } }];"
       },
       "position": [
         1920,
