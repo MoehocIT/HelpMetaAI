@@ -494,10 +494,14 @@ export default function Home() {
       setRefreshTicketList((value) => value + 1);
 
       if (created?.ticketId) {
+        const classificationNote = result.classificationMode === "fallback"
+          ? " AI chưa kết nối; hệ thống đã phân loại dự phòng theo từ khóa."
+          : "";
         notify(
           `Đã tạo ${created.ticketId}. ` +
             `Phân loại: ${categoryLabels[created.category || "Other"] || created.category || "Khác"} · ` +
-            `Ưu tiên: ${created.priority || "Medium"}.`
+            `Ưu tiên: ${created.priority || "Medium"}.` +
+            classificationNote
         );
       } else {
         notify("Đã tạo ticket thành công.");

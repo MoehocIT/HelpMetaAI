@@ -54,9 +54,14 @@ Các workflow hiện được xuất ở trạng thái chưa kích hoạt. Hãy 
 
 ## Ghi chú chức năng
 - API `GET /api/tickets`: lấy danh sách ticket.
-- API `POST /api/tickets`: tạo ticket và gọi webhook n8n nếu `N8N_WEBHOOK_URL` được cấu hình.
+- API `POST /api/tickets`: tạo ticket và gọi webhook n8n nếu `N8N_WEBHOOK_URL` được cấu hình. Nếu Ollama chưa kết nối, hệ thống vẫn lưu ticket và phân loại dự phòng theo từ khóa; nội dung AI trong ticket cần được đội IT xác nhận.
 - API `PATCH /api/tickets/[id]`: cập nhật trạng thái ticket.
-- Trợ lý chat trên giao diện hiện dùng câu trả lời demo ở phía client; nó chưa gọi mô hình AI thật hoặc workflow n8n. Cần tích hợp endpoint/AI provider riêng nếu muốn câu trả lời AI thực sự.
+- Trợ lý chat gọi Ollama qua API phía máy chủ. Ollama chạy trên máy cá nhân hoặc `localhost` không truy cập được từ Vercel; muốn chat AI hoạt động trên website, cần cấu hình `OLLAMA_BASE_URL` tới một dịch vụ Ollama có thể truy cập công khai hoặc thay bằng AI provider được host riêng.
+
+## Triển khai trên Vercel
+- Thêm `MONGODB_URI` trong Project → Settings → Environment Variables.
+- `OLLAMA_BASE_URL`, `OLLAMA_MODEL` và `N8N_WEBHOOK_URL` là tùy chọn; chỉ cấu hình URL mà môi trường Vercel có thể truy cập.
+- Nếu chưa cấu hình Ollama, chat AI sẽ báo chưa kết nối, nhưng chức năng tạo ticket vẫn hoạt động với phân loại dự phòng.
 
 ## Bảo mật
 File `.env.local` trong bản gốc có chứa thông tin kết nối cơ sở dữ liệu. Bản kết hợp này không kèm thông tin đó. Nếu thông tin đã được chia sẻ hoặc tải lên nơi công khai, hãy đổi mật khẩu database/thu hồi credential cũ và cập nhật URI mới trong `.env.local`.

@@ -152,6 +152,49 @@ Nếu chưa đủ thông tin, hãy nêu điều cần kiểm tra thêm.
   return classification;
 }
 
+function classifyTicketWithoutAI(
+  title: string,
+  description: string
+): Classification {
+  const text = `${title} ${description}`.toLocaleLowerCase('vi');
+
+  let category: Classification['category'] = 'Other';
+  let assignedTeam = 'IT General';
+  let suggestion = 'Đội IT sẽ xem xét ticket và liên hệ để hỗ trợ.';
+
+  if (/wifi|wi-fi|mạng|internet|vpn|dns|router|kết nối/.test(text)) {
+    category = 'Network';
+    assignedTeam = 'Network Team';
+    suggestion = 'Kiểm tra kết nối mạng và thử khởi động lại thiết bị mạng nếu phù hợp.';
+  } else if (/máy tính|laptop|bàn phím|chuột|màn hình|máy in|phần cứng/.test(text)) {
+    category = 'Hardware';
+    assignedTeam = 'Hardware Team';
+    suggestion = 'Kiểm tra nguồn điện và kết nối thiết bị; không tự tháo thiết bị.';
+  } else if (/phần mềm|ứng dụng|app|cài đặt|cập nhật|lỗi chương trình/.test(text)) {
+    category = 'Software';
+    assignedTeam = 'Software Team';
+    suggestion = 'Ghi lại thông báo lỗi và thử mở lại ứng dụng trước khi đội IT kiểm tra.';
+  } else if (/đăng nhập|mật khẩu|tài khoản|quyền truy cập|account/.test(text)) {
+    category = 'Account & Access';
+    assignedTeam = 'Account Support';
+    suggestion = 'Dùng quy trình khôi phục tài khoản chính thức; không gửi mật khẩu hoặc OTP.';
+  } else if (/phishing|mã độc|malware|virus|bị hack|bị xâm nhập|rò rỉ/.test(text)) {
+    category = 'Security';
+    assignedTeam = 'Security Team';
+    suggestion = 'Ngừng tương tác với nội dung đáng ngờ và báo ngay cho đội IT bảo mật.';
+  }
+
+  const highRisk = category === 'Security' || /toàn công ty|nhiều người|khẩn cấp|dừng hoạt động/.test(text);
+
+  return {
+    category,
+    priority: highRisk ? 'High' : 'Medium',
+    assignedTeam,
+    reason: 'AI chưa khả dụng; ticket được phân loại dự phòng theo từ khóa. Đội IT cần xác nhận lại.',
+    suggestion,
+  };
+}
+
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 const VALID_STATUSES = ['Open', 'In Progress', 'Resolved'];
 
@@ -319,8 +362,16 @@ export async function POST(request: Request) {
       );
     }
 
-    // Phân loại bằng Ollama trước khi lưu ticket.
-    const classification = await classifyTicket(title, description);
+    // Ticket vẫn được lưu nếu Ollama chưa được cấu hình hoặc tạm thời không khả dụng.
+    let classification: Classification;
+    let classificationMode: 'ai' | 'fallback' = 'ai';
+    try {
+      classification = await classifyTicket(title, description);
+    } catch (error) {
+      classificationMode = 'fallback';
+      classification = classifyTicketWithoutAI(title, description);
+      console.warn('Ollama không khả dụng; dùng phân loại dự phòng:', error);
+    }
 
     await connectDB();
 
@@ -368,7 +419,8 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         success: true,
-        message: 'Ollama đã phân loại và tạo ticket thành công.',
+        message: 'Đã phân loại và tạo ticket thành công.',
+        classificationMode,
         data: newTicket,
       },
       { status: 201 }
