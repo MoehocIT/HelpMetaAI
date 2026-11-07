@@ -1,12 +1,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
-import { getSessionUser } from "../../../../../lib/auth";
 
 export async function POST(request: NextRequest) {
-  if (!getSessionUser(request)) {
-    return NextResponse.json({ error: "Bạn cần đăng nhập." }, { status: 401 });
-  }
-
   try {
     const body = await request.json();
 

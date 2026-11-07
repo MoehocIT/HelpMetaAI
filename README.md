@@ -23,13 +23,6 @@ N8N_WEBHOOK_URL=
 
 Không đưa `.env.local` lên Git hoặc chia sẻ công khai.
 
-## Tài khoản và đăng nhập
-- Tạo tài khoản bằng cách điền `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `DEMO_USER_EMAIL` và `DEMO_USER_PASSWORD` trong `.env.local`, sau đó chạy `npm run seed:users`. Mật khẩu được lưu dạng scrypt hash trong MongoDB.
-- Tạo `AUTH_SECRET` ngẫu nhiên dài tối thiểu 32 byte và cấu hình cùng giá trị trong Vercel → Project → Settings → Environment Variables. Có thể tạo bằng `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"`.
-- Đăng nhập tại `/login`. Session lưu trong cookie HttpOnly và tự hết hạn sau 12 giờ.
-- Quản trị viên xem được toàn bộ ticket và có thể đổi trạng thái. Tài khoản nhân viên chỉ xem ticket do chính tài khoản đó tạo.
-- Sau khi thêm `AUTH_SECRET` trên Vercel, redeploy project. Nếu MongoDB chưa có user, chạy `npm run seed:users` từ máy có `.env.local` kết nối tới đúng MongoDB Atlas.
-
 ## 2. Chạy website
 ```bash
 npm run dev
@@ -67,7 +60,6 @@ Các workflow hiện được xuất ở trạng thái chưa kích hoạt. Hãy 
 
 ## Triển khai trên Vercel
 - Thêm `MONGODB_URI` trong Project → Settings → Environment Variables.
-- Thêm `AUTH_SECRET` và redeploy. Không dùng mật khẩu mẫu hoặc secret đã commit công khai.
 - `OLLAMA_BASE_URL`, `OLLAMA_MODEL` và `N8N_WEBHOOK_URL` là tùy chọn; chỉ cấu hình URL mà môi trường Vercel có thể truy cập.
 - Nếu chưa cấu hình Ollama, chat AI sẽ báo chưa kết nối, nhưng chức năng tạo ticket vẫn hoạt động với phân loại dự phòng.
 

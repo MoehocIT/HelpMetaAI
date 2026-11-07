@@ -10,7 +10,6 @@ export interface ITicket extends Document {
   aiReason: string;
   aiSuggestion: string;
   status: string;
-  createdBy?: string;
   createdAt: Date;
   updatedAt?: Date;
 }
@@ -25,7 +24,6 @@ const TicketSchema: Schema = new Schema({
   aiReason: { type: String, default: '' },
   aiSuggestion: { type: String, default: '' },
   status: { type: String, enum: ['Open', 'In Progress', 'Resolved'], default: 'Open' },
-  createdBy: { type: String, index: true },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date },
 });

@@ -6,7 +6,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { useRouter } from "next/navigation";
 
 type PriorityLevel = "Critical" | "High" | "Medium" | "Low";
 type TicketStatus = "Open" | "In Progress" | "Resolved";
@@ -65,7 +64,6 @@ type ChatMessage = {
 };
 
 type Page = "overview" | "chat" | "tickets" | "knowledge";
-type AuthUser = { id: string; email: string; name: string; role: "admin" | "user" };
 
 type GuideStep = { title: string; body: string };
 type Guide = { category: string; title: string; intro: string; steps: GuideStep[]; escalation: string };
@@ -265,9 +263,6 @@ function getErrorMessage(error: unknown, fallback: string) {
 }
 
 export default function Home() {
-  const router = useRouter();
-  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
-  const [authChecked, setAuthChecked] = useState(false);
   const [page, setPage] = useState<Page>("overview");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -314,31 +309,6 @@ export default function Home() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const latestTicketRequest = useRef(0);
-
-  useEffect(() => {
-    let active = true;
-    fetch("/api/auth/session", { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) {
-          router.replace("/login");
-          return null;
-        }
-        return response.json();
-      })
-      .then((result) => {
-        if (!active || !result?.user) return;
-        setAuthUser(result.user as AuthUser);
-        setAuthChecked(true);
-      })
-      .catch(() => router.replace("/login"));
-    return () => { active = false; };
-  }, [router]);
-
-  async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.replace("/login");
-    router.refresh();
-  }
 
   const notify = useCallback((text: string) => {
     setToast(text);
@@ -464,9 +434,8 @@ export default function Home() {
   }, [debouncedQuery, filter, sortBy, ticketPage, refreshTicketList]);
 
   useEffect(() => {
-    if (!authChecked || !authUser) return;
     void loadTickets();
-  }, [authChecked, authUser, loadTickets]);
+  }, [loadTickets]);
 
   const visibleTickets = tickets;
 
@@ -708,16 +677,6 @@ export default function Home() {
     ]);
   }
 
-  if (!authChecked || !authUser) {
-    return (
-      <main className="auth-screen">
-        <p role="status">Đang kiểm tra phiên đăng nhập…</p>
-      </main>
-    );
-  }
-
-  const initials = authUser.name.split(/\s+/).slice(-2).map((part) => part[0]).join("").toUpperCase();
-
   return (
     <main className="app-shell">
       {mobileNavOpen && (
@@ -773,12 +732,12 @@ export default function Home() {
           </div>
 
           <div className="user-profile">
-            <div className="avatar">{initials}</div>
+            <div className="avatar">MP</div>
             <div className="user-info">
-              <strong>{authUser.name}</strong>
-              <span>{authUser.role === "admin" ? "Quản trị viên" : "Nhân viên"}</span>
+              <strong>Mai Phương</strong>
+              <span>Nhân viên</span>
             </div>
-            <button className="more-button" aria-label="Đăng xuất" title="Đăng xuất" onClick={() => void logout()}>
+            <button className="more-button" aria-label="Tùy chọn">
               ↪
             </button>
           </div>
@@ -817,8 +776,7 @@ export default function Home() {
               ♧<i className="notification-dot" />
             </button>
 
-            <button className="logout-button" onClick={() => void logout()}>Đăng xuất</button>
-            <div className="top-avatar" title={authUser.email}>{initials}</div>
+            <div className="top-avatar">MP</div>
           </div>
         </header>
 
@@ -829,7 +787,7 @@ export default function Home() {
                 <div>
                   <div className="eyebrow">TỔNG QUAN KHÔNG GIAN LÀM VIỆC</div>
                   <h1>
-                    Xin chào, {authUser.name.split(/\s+/).slice(-1)[0]}{" "}
+                    Chào buổi tối, Phương{" "}
                     <span className="wave">✦</span>
                   </h1>
                   <p>
@@ -1212,7 +1170,7 @@ export default function Home() {
                             </td>
 
                             <td onClick={(event) => event.stopPropagation()}>
-                              {authUser.role === "admin" ? <select
+                              <select
                                 className="status-select"
                                 aria-label={`Trạng thái ${ticket.id}`}
                                 value={ticket.status}
@@ -1227,7 +1185,7 @@ export default function Home() {
                                 <option value="Open">Đang mở</option>
                                 <option value="In Progress">Đang xử lý</option>
                                 <option value="Resolved">Đã giải quyết</option>
-                              </select> : <Status status={ticket.status} />}
+                              </select>
                             </td>
 
                             <td>{ticket.owner}</td>
@@ -1627,7 +1585,7 @@ export default function Home() {
                 Trạng thái ticket
               </label>
 
-              {authUser.role === "admin" ? <select
+              <select
                 id="detail-ticket-status"
                 className="status-select ticket-detail-status"
                 value={selectedTicket.status}
@@ -1642,7 +1600,7 @@ export default function Home() {
                 <option value="Open">Đang mở</option>
                 <option value="In Progress">Đang xử lý</option>
                 <option value="Resolved">Đã giải quyết</option>
-              </select> : <Status status={selectedTicket.status} />}
+              </select>
             </div>
 
             <div className="ticket-detail-section">
