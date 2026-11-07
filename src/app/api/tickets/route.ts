@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import connectDB, { isMongoConnectionError } from '../../../lib/mongodb';
+import { getSessionUser } from '../../../lib/auth';
 import Ticket from '../../../models/Ticket';
 
 
@@ -203,6 +204,11 @@ function escapeRegex(value: string) {
 }
 
 export async function GET(request: Request) {
+  const user = getSessionUser(request);
+  if (!user) {
+    return NextResponse.json({ success: false, error: 'Bạn cần đăng nhập.' }, { status: 401 });
+  }
+
   try {
     await connectDB();
 
@@ -228,15 +234,17 @@ export async function GET(request: Request) {
         ],
       });
     }
-    const query = filters.length ? { $and: filters } : {};
+    const accessFilter = user.role === 'admin' ? {} : { createdBy: user.id };
+    if (user.role !== 'admin') filters.push(accessFilter);
+    const query = filters.length ? { $and: filters } : accessFilter;
 
     const [total, allTickets, open, inProgress, resolved, urgent] = await Promise.all([
       Ticket.countDocuments(query),
-      Ticket.countDocuments({}),
-      Ticket.countDocuments({ status: 'Open' }),
-      Ticket.countDocuments({ status: 'In Progress' }),
-      Ticket.countDocuments({ status: 'Resolved' }),
-      Ticket.countDocuments({ priority: { $in: ['Critical', 'High'] }, status: { $ne: 'Resolved' } }),
+      Ticket.countDocuments(accessFilter),
+      Ticket.countDocuments({ ...accessFilter, status: 'Open' }),
+      Ticket.countDocuments({ ...accessFilter, status: 'In Progress' }),
+      Ticket.countDocuments({ ...accessFilter, status: 'Resolved' }),
+      Ticket.countDocuments({ ...accessFilter, priority: { $in: ['Critical', 'High'] }, status: { $ne: 'Resolved' } }),
     ]);
 
     const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -277,6 +285,7 @@ export async function GET(request: Request) {
     const [tickets, priorityTickets] = await Promise.all([
       listQuery,
       Ticket.aggregate([
+        { $match: accessFilter },
         {
           $addFields: {
             __priorityOrder: {
@@ -330,6 +339,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const user = getSessionUser(request);
+  if (!user) {
+    return NextResponse.json({ success: false, error: 'Bạn cần đăng nhập.' }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
 
@@ -389,6 +403,7 @@ export async function POST(request: Request) {
       aiReason: classification.reason,
       aiSuggestion: classification.suggestion,
       status: 'Open',
+      createdBy: user.id,
       updatedAt: new Date(),
     });
 

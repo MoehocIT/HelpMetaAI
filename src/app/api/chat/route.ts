@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSessionUser } from "../../../lib/auth";
 
 const SYSTEM_PROMPT = `Bạn là HelpMate AI, trợ lý IT nội bộ, thân thiện và thực tế.
 - Trả lời bằng tiếng Việt, dễ hiểu, theo từng bước khi hướng dẫn xử lý.
@@ -9,6 +10,10 @@ const SYSTEM_PROMPT = `Bạn là HelpMate AI, trợ lý IT nội bộ, thân thi
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
 export async function POST(request: NextRequest) {
+  if (!getSessionUser(request)) {
+    return NextResponse.json({ error: "Bạn cần đăng nhập." }, { status: 401 });
+  }
+
   let body: unknown;
 
   try {
