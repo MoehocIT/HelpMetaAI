@@ -4,8 +4,6 @@ import connectDB from '../../../../lib/mongodb';
 import { createSessionToken, SESSION_COOKIE, sessionCookieOptions } from '../../../../lib/auth';
 import User from '../../../../models/User';
 
-export const runtime = 'nodejs';
-
 function verifyPassword(password: string, encodedHash: string) {
   const [algorithm, salt, hash, extra] = encodedHash.split('$');
   if (algorithm !== 'scrypt' || !salt || !hash || extra || !/^[a-f\d]+$/i.test(hash)) {
