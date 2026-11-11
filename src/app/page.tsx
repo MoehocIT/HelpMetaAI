@@ -345,6 +345,31 @@ export default function Home() {
     router.refresh();
   }
 
+  function exportReportCsv() {
+    const rows = [
+      ["Nhóm", "Tên", "Số lượng"],
+      ["Tổng quan", "Tổng ticket", String(ticketSummary.total)],
+      ["Trạng thái", "Đang mở", String(ticketSummary.open)],
+      ["Trạng thái", "Đang xử lý", String(ticketSummary.inProgress)],
+      ["Trạng thái", "Đã giải quyết", String(ticketSummary.resolved)],
+      ["Ưu tiên", "Ticket ưu tiên cao chưa giải quyết", String(ticketSummary.urgent)],
+      ...ticketCategories.map((item) => ["Danh mục", categoryLabels[item._id] || item._id || "Khác", String(item.count)]),
+      ...ticketPriorities.map((item) => [
+        "Mức ưu tiên",
+        ({ Critical: "Nghiêm trọng", High: "Cao", Medium: "Trung bình", Low: "Thấp" } as Record<string, string>)[item._id] || item._id,
+        String(item.count),
+      ]),
+      ["Thông tin", "Thời điểm xuất (UTC)", new Date().toISOString()],
+    ];
+    const csv = `\uFEFF${rows.map((row) => row.map((value) => `"${value.replaceAll('"', '""')}"`).join(",")).join("\r\n")}`;
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `helpmate-bao-cao-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   const notify = useCallback((text: string) => {
     setToast(text);
 
@@ -1286,9 +1311,12 @@ export default function Home() {
                   <h1>Báo cáo ticket</h1>
                   <p>Tổng hợp ticket trong phạm vi dữ liệu tài khoản của bạn.</p>
                 </div>
-                <button className="secondary-button" onClick={() => void loadTickets()} disabled={ticketsLoading}>
-                  {ticketsLoading ? "Đang cập nhật…" : "↻ Làm mới dữ liệu"}
-                </button>
+                <div className="report-actions">
+                  <button className="secondary-button" onClick={exportReportCsv} disabled={ticketsLoading || Boolean(apiError)}>↓ Tải CSV</button>
+                  <button className="secondary-button" onClick={() => void loadTickets()} disabled={ticketsLoading}>
+                    {ticketsLoading ? "Đang cập nhật…" : "↻ Làm mới dữ liệu"}
+                  </button>
+                </div>
               </div>
 
               {apiError && (
