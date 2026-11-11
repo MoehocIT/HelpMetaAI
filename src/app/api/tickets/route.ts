@@ -221,9 +221,14 @@ export async function GET(request: Request) {
     const sortBy = searchParams.get('sort') || 'recent';
     const reportPeriod = searchParams.get('reportPeriod');
     const reportDays = reportPeriod === '7d' ? 7 : reportPeriod === '30d' ? 30 : 0;
+    const bangkokOffset = 7 * 60 * 60 * 1000;
+    const bangkokTodayStart = new Date(Math.floor((Date.now() + bangkokOffset) / 86400000) * 86400000 - bangkokOffset);
+    const bangkokNow = new Date(Date.now() + bangkokOffset);
+    const twelveMonthsAgo = new Date(Date.UTC(bangkokNow.getUTCFullYear(), bangkokNow.getUTCMonth() - 11, 1) - bangkokOffset);
     const reportFilter = reportDays
-      ? { ...accessFilter, createdAt: { $gte: new Date(Date.now() - reportDays * 24 * 60 * 60 * 1000) } }
+      ? { ...accessFilter, createdAt: { $gte: new Date(bangkokTodayStart.getTime() - (reportDays - 1) * 86400000) } }
       : accessFilter;
+    const trendFilter = reportDays ? reportFilter : { ...accessFilter, createdAt: { $gte: twelveMonthsAgo } };
 
     const filters: Record<string, unknown>[] = [];
     if (VALID_STATUSES.includes(status)) filters.push({ status });
@@ -243,7 +248,7 @@ export async function GET(request: Request) {
     if (user.role !== 'admin') filters.push(accessFilter);
     const query = filters.length ? { $and: filters } : accessFilter;
 
-    const [total, reportTotal, open, inProgress, resolved, urgent, categories, priorities] = await Promise.all([
+    const [total, reportTotal, open, inProgress, resolved, urgent, categories, priorities, trend] = await Promise.all([
       Ticket.countDocuments(query),
       Ticket.countDocuments(reportFilter),
       Ticket.countDocuments({ ...reportFilter, status: 'Open' }),
@@ -258,6 +263,24 @@ export async function GET(request: Request) {
       Ticket.aggregate([
         { $match: reportFilter },
         { $group: { _id: '$priority', count: { $sum: 1 } } },
+      ]),
+      Ticket.aggregate([
+        { $match: trendFilter },
+        {
+          $group: {
+            _id: {
+              $dateToString: {
+                format: reportDays ? '%Y-%m-%d' : '%Y-%m',
+                date: '$createdAt',
+                timezone: 'Asia/Bangkok',
+              },
+            },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: reportDays ? 1 : -1 } },
+        ...(reportDays ? [] : [{ $limit: 12 }]),
+        ...(!reportDays ? [{ $sort: { _id: 1 } }] : []),
       ]),
     ]);
 
@@ -331,7 +354,7 @@ export async function GET(request: Request) {
           limit,
           total,
           totalPages,
-          summary: { total: reportTotal, open, inProgress, resolved, urgent, categories, priorities },
+          summary: { total: reportTotal, open, inProgress, resolved, urgent, categories, priorities, trend },
         },
       },
       { status: 200 }

@@ -51,6 +51,38 @@ type TicketSummary = {
 };
 
 type TicketBreakdown = { _id: string; count: number }[];
+type TicketTrend = { _id: string; count: number }[];
+
+function fillDailyTrend(trend: TicketTrend, days: 7 | 30): TicketTrend {
+  const counts = new Map(trend.map((item) => [item._id, item.count]));
+  const formatDate = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return Array.from({ length: days }, (_, index) => {
+    const date = new Date(Date.now() - (days - index - 1) * 24 * 60 * 60 * 1000);
+    const key = formatDate.format(date);
+    return { _id: key, count: counts.get(key) || 0 };
+  });
+}
+
+function fillMonthlyTrend(trend: TicketTrend): TicketTrend {
+  const counts = new Map(trend.map((item) => [item._id, item.count]));
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(new Date());
+  const year = Number(parts.find((part) => part.type === "year")?.value);
+  const month = Number(parts.find((part) => part.type === "month")?.value);
+  return Array.from({ length: 12 }, (_, index) => {
+    const date = new Date(Date.UTC(year, month - 1 - 11 + index, 1));
+    const key = date.toISOString().slice(0, 7);
+    return { _id: key, count: counts.get(key) || 0 };
+  });
+}
 
 const emptyTicketSummary: TicketSummary = {
   total: 0,
@@ -279,6 +311,7 @@ export default function Home() {
   const [ticketSummary, setTicketSummary] = useState<TicketSummary>(emptyTicketSummary);
   const [ticketCategories, setTicketCategories] = useState<TicketBreakdown>([]);
   const [ticketPriorities, setTicketPriorities] = useState<TicketBreakdown>([]);
+  const [ticketTrend, setTicketTrend] = useState<TicketTrend>([]);
   const [reportPeriod, setReportPeriod] = useState<"all" | "30d" | "7d">("all");
   const [ticketTotal, setTicketTotal] = useState(0);
   const [ticketTotalPages, setTicketTotalPages] = useState(1);
@@ -360,6 +393,7 @@ export default function Home() {
         ({ Critical: "Nghiêm trọng", High: "Cao", Medium: "Trung bình", Low: "Thấp" } as Record<string, string>)[item._id] || item._id,
         String(item.count),
       ]),
+      ...ticketTrend.map((item) => ["Xu hướng", item._id, String(item.count)]),
       ["Thông tin", "Khoảng thời gian", reportPeriod === "all" ? "Toàn bộ thời gian" : `${reportPeriod === "7d" ? "7" : "30"} ngày gần nhất`],
       ["Thông tin", "Thời điểm xuất (UTC)", new Date().toISOString()],
     ];
@@ -444,6 +478,7 @@ export default function Home() {
         summary?: Partial<TicketSummary> & {
           categories?: TicketBreakdown;
           priorities?: TicketBreakdown;
+          trend?: TicketTrend;
         };
       } | undefined;
 
@@ -468,6 +503,8 @@ export default function Home() {
       });
       setTicketCategories(Array.isArray(meta?.summary?.categories) ? meta.summary.categories : []);
       setTicketPriorities(Array.isArray(meta?.summary?.priorities) ? meta.summary.priorities : []);
+      const trend = Array.isArray(meta?.summary?.trend) ? meta.summary.trend : [];
+      setTicketTrend(reportPeriod === "all" ? fillMonthlyTrend(trend) : fillDailyTrend(trend, reportPeriod === "7d" ? 7 : 30));
       setApiError("");
 
       setSelectedTicket((current) => {
@@ -1373,6 +1410,25 @@ export default function Home() {
                   </div>
                 </section>
               </div>
+
+              <section className="panel trend-panel">
+                <div className="panel-heading"><div><h2>Xu hướng ticket</h2><p>{reportPeriod === "all" ? "12 tháng gần đây" : `${reportPeriod === "7d" ? "7 ngày" : "30 ngày"} gần nhất`}</p></div></div>
+                {ticketTrend.length ? <div className="trend-chart" role="img" aria-label="Biểu đồ số ticket được tạo theo thời gian">
+                  {ticketTrend.map((item) => {
+                    const maxCount = Math.max(1, ...ticketTrend.map((entry) => entry.count));
+                    const height = item.count ? Math.max(8, Math.round(item.count / maxCount * 100)) : 0;
+                    const date = new Date(item._id.length === 7 ? `${item._id}-01T00:00:00Z` : `${item._id}T00:00:00Z`);
+                    const label = reportPeriod === "all"
+                      ? date.toLocaleDateString("vi-VN", { month: "short", year: "2-digit", timeZone: "UTC" })
+                      : date.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", timeZone: "UTC" });
+                    return <div className="trend-column" key={item._id} title={`${label}: ${item.count} ticket`}>
+                      <span className="trend-value">{item.count || ""}</span>
+                      <div className="trend-bar-track"><span style={{ height: `${height}%` }} /></div>
+                      <span className="trend-label">{label}</span>
+                    </div>;
+                  })}
+                </div> : <p className="breakdown-empty trend-empty">Chưa có dữ liệu trong khoảng thời gian này.</p>}
+              </section>
 
               <section className="panel report-panel">
                 <div className="panel-heading">
