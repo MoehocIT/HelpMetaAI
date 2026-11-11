@@ -279,6 +279,7 @@ export default function Home() {
   const [ticketSummary, setTicketSummary] = useState<TicketSummary>(emptyTicketSummary);
   const [ticketCategories, setTicketCategories] = useState<TicketBreakdown>([]);
   const [ticketPriorities, setTicketPriorities] = useState<TicketBreakdown>([]);
+  const [reportPeriod, setReportPeriod] = useState<"all" | "30d" | "7d">("all");
   const [ticketTotal, setTicketTotal] = useState(0);
   const [ticketTotalPages, setTicketTotalPages] = useState(1);
   const [ticketPage, setTicketPage] = useState(1);
@@ -359,6 +360,7 @@ export default function Home() {
         ({ Critical: "Nghiêm trọng", High: "Cao", Medium: "Trung bình", Low: "Thấp" } as Record<string, string>)[item._id] || item._id,
         String(item.count),
       ]),
+      ["Thông tin", "Khoảng thời gian", reportPeriod === "all" ? "Toàn bộ thời gian" : `${reportPeriod === "7d" ? "7" : "30"} ngày gần nhất`],
       ["Thông tin", "Thời điểm xuất (UTC)", new Date().toISOString()],
     ];
     const csv = `\uFEFF${rows.map((row) => row.map((value) => `"${value.replaceAll('"', '""')}"`).join(",")).join("\r\n")}`;
@@ -415,6 +417,7 @@ export default function Home() {
         page: String(ticketPage),
         limit: "10",
         sort: sortBy,
+        reportPeriod: page === "reports" ? reportPeriod : "all",
       });
       if (debouncedQuery) params.set("search", debouncedQuery);
       if (filter !== "All") params.set("status", filter);
@@ -496,7 +499,7 @@ export default function Home() {
     } finally {
       if (requestId === latestTicketRequest.current) setTicketsLoading(false);
     }
-  }, [debouncedQuery, filter, sortBy, ticketPage, refreshTicketList]);
+  }, [debouncedQuery, filter, page, reportPeriod, sortBy, ticketPage, refreshTicketList]);
 
   useEffect(() => {
     if (!authChecked || !authUser) return;
@@ -1309,9 +1312,15 @@ export default function Home() {
                 <div>
                   <div className="eyebrow">PHÂN TÍCH HỖ TRỢ CNTT</div>
                   <h1>Báo cáo ticket</h1>
-                  <p>Tổng hợp ticket trong phạm vi dữ liệu tài khoản của bạn.</p>
+                  <p>{reportPeriod === "all" ? "Tổng hợp ticket trong phạm vi dữ liệu tài khoản của bạn." : `Tổng hợp ticket phát sinh trong ${reportPeriod === "7d" ? "7 ngày" : "30 ngày"} gần nhất.`}</p>
                 </div>
                 <div className="report-actions">
+                  <label className="report-range-label" htmlFor="report-period">Khoảng thời gian</label>
+                  <select id="report-period" className="report-range-select" value={reportPeriod} onChange={(event) => setReportPeriod(event.target.value as typeof reportPeriod)}>
+                    <option value="7d">7 ngày gần nhất</option>
+                    <option value="30d">30 ngày gần nhất</option>
+                    <option value="all">Toàn bộ thời gian</option>
+                  </select>
                   <button className="secondary-button" onClick={exportReportCsv} disabled={ticketsLoading || Boolean(apiError)}>↓ Tải CSV</button>
                   <button className="secondary-button" onClick={() => void loadTickets()} disabled={ticketsLoading}>
                     {ticketsLoading ? "Đang cập nhật…" : "↻ Làm mới dữ liệu"}

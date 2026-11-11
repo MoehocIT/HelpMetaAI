@@ -219,6 +219,11 @@ export async function GET(request: Request) {
     const search = (searchParams.get('search') || '').trim().slice(0, 120);
     const status = searchParams.get('status') || 'All';
     const sortBy = searchParams.get('sort') || 'recent';
+    const reportPeriod = searchParams.get('reportPeriod');
+    const reportDays = reportPeriod === '7d' ? 7 : reportPeriod === '30d' ? 30 : 0;
+    const reportFilter = reportDays
+      ? { ...accessFilter, createdAt: { $gte: new Date(Date.now() - reportDays * 24 * 60 * 60 * 1000) } }
+      : accessFilter;
 
     const filters: Record<string, unknown>[] = [];
     if (VALID_STATUSES.includes(status)) filters.push({ status });
@@ -238,20 +243,20 @@ export async function GET(request: Request) {
     if (user.role !== 'admin') filters.push(accessFilter);
     const query = filters.length ? { $and: filters } : accessFilter;
 
-    const [total, allTickets, open, inProgress, resolved, urgent, categories, priorities] = await Promise.all([
+    const [total, reportTotal, open, inProgress, resolved, urgent, categories, priorities] = await Promise.all([
       Ticket.countDocuments(query),
-      Ticket.countDocuments(accessFilter),
-      Ticket.countDocuments({ ...accessFilter, status: 'Open' }),
-      Ticket.countDocuments({ ...accessFilter, status: 'In Progress' }),
-      Ticket.countDocuments({ ...accessFilter, status: 'Resolved' }),
-      Ticket.countDocuments({ ...accessFilter, priority: { $in: ['Critical', 'High'] }, status: { $ne: 'Resolved' } }),
+      Ticket.countDocuments(reportFilter),
+      Ticket.countDocuments({ ...reportFilter, status: 'Open' }),
+      Ticket.countDocuments({ ...reportFilter, status: 'In Progress' }),
+      Ticket.countDocuments({ ...reportFilter, status: 'Resolved' }),
+      Ticket.countDocuments({ ...reportFilter, priority: { $in: ['Critical', 'High'] }, status: { $ne: 'Resolved' } }),
       Ticket.aggregate([
-        { $match: accessFilter },
+        { $match: reportFilter },
         { $group: { _id: '$category', count: { $sum: 1 } } },
         { $sort: { count: -1, _id: 1 } },
       ]),
       Ticket.aggregate([
-        { $match: accessFilter },
+        { $match: reportFilter },
         { $group: { _id: '$priority', count: { $sum: 1 } } },
       ]),
     ]);
@@ -326,7 +331,7 @@ export async function GET(request: Request) {
           limit,
           total,
           totalPages,
-          summary: { total: allTickets, open, inProgress, resolved, urgent, categories, priorities },
+          summary: { total: reportTotal, open, inProgress, resolved, urgent, categories, priorities },
         },
       },
       { status: 200 }

@@ -211,6 +211,8 @@ html,body{font-size:16px}
 
 .report-breakdowns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:22px}
 .report-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.report-range-label{font-size:12px;font-weight:600;color:#7b8495}
+.report-range-select{min-height:40px;padding:0 30px 0 11px;border:1px solid #e3e6ee;border-radius:9px;background:#fff;color:#465166;font-size:12px}
 .breakdown-panel{min-width:0;overflow:hidden}
 .breakdown-panel .panel-heading{padding:20px 22px 12px}
 .breakdown-panel .panel-heading h2{margin:0;color:#30384d}
