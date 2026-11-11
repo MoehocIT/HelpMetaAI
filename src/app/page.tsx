@@ -50,6 +50,8 @@ type TicketSummary = {
   urgent: number;
 };
 
+type TicketBreakdown = { _id: string; count: number }[];
+
 const emptyTicketSummary: TicketSummary = {
   total: 0,
   open: 0,
@@ -275,6 +277,8 @@ export default function Home() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [dashboardTickets, setDashboardTickets] = useState<Ticket[]>([]);
   const [ticketSummary, setTicketSummary] = useState<TicketSummary>(emptyTicketSummary);
+  const [ticketCategories, setTicketCategories] = useState<TicketBreakdown>([]);
+  const [ticketPriorities, setTicketPriorities] = useState<TicketBreakdown>([]);
   const [ticketTotal, setTicketTotal] = useState(0);
   const [ticketTotalPages, setTicketTotalPages] = useState(1);
   const [ticketPage, setTicketPage] = useState(1);
@@ -409,7 +413,10 @@ export default function Home() {
         page?: number;
         total?: number;
         totalPages?: number;
-        summary?: Partial<TicketSummary>;
+        summary?: Partial<TicketSummary> & {
+          categories?: TicketBreakdown;
+          priorities?: TicketBreakdown;
+        };
       } | undefined;
 
       const mappedTickets = data
@@ -431,6 +438,8 @@ export default function Home() {
         resolved: Number(meta?.summary?.resolved) || 0,
         urgent: Number(meta?.summary?.urgent) || 0,
       });
+      setTicketCategories(Array.isArray(meta?.summary?.categories) ? meta.summary.categories : []);
+      setTicketPriorities(Array.isArray(meta?.summary?.priorities) ? meta.summary.priorities : []);
       setApiError("");
 
       setSelectedTicket((current) => {
@@ -1297,6 +1306,35 @@ export default function Home() {
                 <StatCard label="Đang mở" value={String(ticketSummary.open)} change="Cần tiếp nhận" icon="◷" tone="orange" note="chưa xử lý" />
                 <StatCard label="Đang xử lý" value={String(ticketSummary.inProgress)} change="Đội IT phụ trách" icon="↗" tone="blue" note="đang thực hiện" />
                 <StatCard label="Đã giải quyết" value={String(ticketSummary.resolved)} change={ticketSummary.total ? `${Math.round(ticketSummary.resolved / ticketSummary.total * 100)}% tổng ticket` : "Chưa có dữ liệu"} icon="✓" tone="green" note="đã hoàn tất" />
+              </div>
+
+              <div className="report-breakdowns">
+                <section className="panel breakdown-panel">
+                  <div className="panel-heading"><div><h2>Theo danh mục</h2><p>Phân bố trên toàn bộ ticket</p></div></div>
+                  <div className="breakdown-list">
+                    {ticketCategories.length ? ticketCategories.map((item) => {
+                      const percent = ticketSummary.total ? Math.round(item.count / ticketSummary.total * 100) : 0;
+                      return <div className="breakdown-row" key={item._id}>
+                        <div className="breakdown-label"><span>{categoryLabels[item._id] || item._id || "Khác"}</span><strong>{item.count}</strong></div>
+                        <div className="breakdown-track"><span style={{ width: `${percent}%` }} /></div>
+                      </div>;
+                    }) : <p className="breakdown-empty">Chưa có dữ liệu phân loại.</p>}
+                  </div>
+                </section>
+                <section className="panel breakdown-panel">
+                  <div className="panel-heading"><div><h2>Theo mức ưu tiên</h2><p>Phân bố trên toàn bộ ticket</p></div></div>
+                  <div className="breakdown-list">
+                    {(["Critical", "High", "Medium", "Low"] as const).map((priority) => {
+                      const count = ticketPriorities.find((item) => item._id === priority)?.count || 0;
+                      const percent = ticketSummary.total ? Math.round(count / ticketSummary.total * 100) : 0;
+                      const labels: Record<PriorityLevel, string> = { Critical: "Nghiêm trọng", High: "Cao", Medium: "Trung bình", Low: "Thấp" };
+                      return <div className="breakdown-row" key={priority}>
+                        <div className="breakdown-label"><span><i className={`priority-dot priority-dot-${priority.toLowerCase()}`} />{labels[priority]}</span><strong>{count}</strong></div>
+                        <div className="breakdown-track"><span className={`breakdown-fill-${priority.toLowerCase()}`} style={{ width: `${percent}%` }} /></div>
+                      </div>;
+                    })}
+                  </div>
+                </section>
               </div>
 
               <section className="panel report-panel">

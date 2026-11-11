@@ -238,13 +238,22 @@ export async function GET(request: Request) {
     if (user.role !== 'admin') filters.push(accessFilter);
     const query = filters.length ? { $and: filters } : accessFilter;
 
-    const [total, allTickets, open, inProgress, resolved, urgent] = await Promise.all([
+    const [total, allTickets, open, inProgress, resolved, urgent, categories, priorities] = await Promise.all([
       Ticket.countDocuments(query),
       Ticket.countDocuments(accessFilter),
       Ticket.countDocuments({ ...accessFilter, status: 'Open' }),
       Ticket.countDocuments({ ...accessFilter, status: 'In Progress' }),
       Ticket.countDocuments({ ...accessFilter, status: 'Resolved' }),
       Ticket.countDocuments({ ...accessFilter, priority: { $in: ['Critical', 'High'] }, status: { $ne: 'Resolved' } }),
+      Ticket.aggregate([
+        { $match: accessFilter },
+        { $group: { _id: '$category', count: { $sum: 1 } } },
+        { $sort: { count: -1, _id: 1 } },
+      ]),
+      Ticket.aggregate([
+        { $match: accessFilter },
+        { $group: { _id: '$priority', count: { $sum: 1 } } },
+      ]),
     ]);
 
     const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -317,7 +326,7 @@ export async function GET(request: Request) {
           limit,
           total,
           totalPages,
-          summary: { total: allTickets, open, inProgress, resolved, urgent },
+          summary: { total: allTickets, open, inProgress, resolved, urgent, categories, priorities },
         },
       },
       { status: 200 }
