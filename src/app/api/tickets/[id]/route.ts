@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import connectDB, { isMongoConnectionError } from "../../../../lib/mongodb";
+import { getSessionUser } from "../../../../lib/auth";
 import Ticket from "../../../../models/Ticket";
 
 // Những trạng thái hợp lệ của ticket
@@ -11,6 +12,20 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const user = getSessionUser(request);
+  if (!user) {
+    return NextResponse.json(
+      { success: false, error: "Bạn cần đăng nhập." },
+      { status: 401 }
+    );
+  }
+  if (user.role !== "admin") {
+    return NextResponse.json(
+      { success: false, error: "Chỉ quản trị viên được cập nhật ticket." },
+      { status: 403 }
+    );
+  }
+
   try {
     // 1. Kết nối MongoDB
     await connectDB();

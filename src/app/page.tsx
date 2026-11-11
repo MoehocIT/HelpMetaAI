@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useRouter } from "next/navigation";
 
 type PriorityLevel = "Critical" | "High" | "Medium" | "Low";
 type TicketStatus = "Open" | "In Progress" | "Resolved";
@@ -63,7 +64,8 @@ type ChatMessage = {
   text: string;
 };
 
-type Page = "overview" | "chat" | "tickets" | "knowledge";
+type Page = "overview" | "chat" | "tickets" | "knowledge" | "reports";
+type AuthUser = { id: string; email: string; name: string; role: "admin" | "user" };
 
 type GuideStep = { title: string; body: string };
 type Guide = { category: string; title: string; intro: string; steps: GuideStep[]; escalation: string };
@@ -90,6 +92,7 @@ const navItems: {
   { id: "chat", icon: "✳", label: "Trợ lý AI" },
   { id: "tickets", icon: "▤", label: "Quản lý ticket" },
   { id: "knowledge", icon: "▧", label: "Kho kiến thức" },
+  { id: "reports", icon: "▥", label: "Báo cáo" },
 ];
 
 const guides: Record<string, Guide> = {
@@ -263,6 +266,9 @@ function getErrorMessage(error: unknown, fallback: string) {
 }
 
 export default function Home() {
+  const router = useRouter();
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [page, setPage] = useState<Page>("overview");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -309,6 +315,31 @@ export default function Home() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const latestTicketRequest = useRef(0);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/auth/session", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) {
+          router.replace("/login");
+          return null;
+        }
+        return response.json();
+      })
+      .then((result) => {
+        if (!active || !result?.user) return;
+        setAuthUser(result.user as AuthUser);
+        setAuthChecked(true);
+      })
+      .catch(() => router.replace("/login"));
+    return () => { active = false; };
+  }, [router]);
+
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.replace("/login");
+    router.refresh();
+  }
 
   const notify = useCallback((text: string) => {
     setToast(text);
@@ -434,8 +465,9 @@ export default function Home() {
   }, [debouncedQuery, filter, sortBy, ticketPage, refreshTicketList]);
 
   useEffect(() => {
+    if (!authChecked || !authUser) return;
     void loadTickets();
-  }, [loadTickets]);
+  }, [authChecked, authUser, loadTickets]);
 
   const visibleTickets = tickets;
 
@@ -677,6 +709,16 @@ export default function Home() {
     ]);
   }
 
+  if (!authChecked || !authUser) {
+    return (
+      <main className="auth-screen">
+        <p role="status">Đang kiểm tra phiên đăng nhập…</p>
+      </main>
+    );
+  }
+
+  const initials = authUser.name.split(/\s+/).slice(-2).map((part) => part[0]).join("").toUpperCase();
+
   return (
     <main className="app-shell">
       {mobileNavOpen && (
@@ -732,12 +774,12 @@ export default function Home() {
           </div>
 
           <div className="user-profile">
-            <div className="avatar">MP</div>
+            <div className="avatar">{initials}</div>
             <div className="user-info">
-              <strong>Mai Phương</strong>
-              <span>Nhân viên</span>
+              <strong>{authUser.name}</strong>
+              <span>{authUser.role === "admin" ? "Quản trị viên" : "Nhân viên"}</span>
             </div>
-            <button className="more-button" aria-label="Tùy chọn">
+            <button className="more-button" aria-label="Đăng xuất" title="Đăng xuất" onClick={() => void logout()}>
               ↪
             </button>
           </div>
@@ -776,7 +818,8 @@ export default function Home() {
               ♧<i className="notification-dot" />
             </button>
 
-            <div className="top-avatar">MP</div>
+            <button className="logout-button" onClick={() => void logout()}>Đăng xuất</button>
+            <div className="top-avatar" title={authUser.email}>{initials}</div>
           </div>
         </header>
 
@@ -787,7 +830,7 @@ export default function Home() {
                 <div>
                   <div className="eyebrow">TỔNG QUAN KHÔNG GIAN LÀM VIỆC</div>
                   <h1>
-                    Chào buổi tối, Phương{" "}
+                    Xin chào, {authUser.name.split(/\s+/).slice(-1)[0]}{" "}
                     <span className="wave">✦</span>
                   </h1>
                   <p>
@@ -1170,7 +1213,7 @@ export default function Home() {
                             </td>
 
                             <td onClick={(event) => event.stopPropagation()}>
-                              <select
+                              {authUser.role === "admin" ? <select
                                 className="status-select"
                                 aria-label={`Trạng thái ${ticket.id}`}
                                 value={ticket.status}
@@ -1185,7 +1228,7 @@ export default function Home() {
                                 <option value="Open">Đang mở</option>
                                 <option value="In Progress">Đang xử lý</option>
                                 <option value="Resolved">Đã giải quyết</option>
-                              </select>
+                              </select> : <Status status={ticket.status} />}
                             </td>
 
                             <td>{ticket.owner}</td>
@@ -1222,6 +1265,62 @@ export default function Home() {
                     <button type="button" disabled={ticketsLoading || ticketPage >= ticketTotalPages} onClick={() => setTicketPage((page) => Math.min(ticketTotalPages, page + 1))}>Tiếp →</button>
                   </div>
                 </div>
+              </section>
+            </>
+          )}
+
+          {page === "reports" && (
+            <>
+              <div className="page-heading">
+                <div>
+                  <div className="eyebrow">PHÂN TÍCH HỖ TRỢ CNTT</div>
+                  <h1>Báo cáo ticket</h1>
+                  <p>Tổng hợp ticket trong phạm vi dữ liệu tài khoản của bạn.</p>
+                </div>
+                <button className="secondary-button" onClick={() => void loadTickets()} disabled={ticketsLoading}>
+                  {ticketsLoading ? "Đang cập nhật…" : "↻ Làm mới dữ liệu"}
+                </button>
+              </div>
+
+              {apiError && (
+                <div className="api-error" role="alert">
+                  <span className="api-error-icon">!</span>
+                  <div><strong>Không tải được báo cáo</strong><p>{apiError}</p></div>
+                  <button disabled={ticketsLoading} onClick={() => void loadTickets()}>
+                    {ticketsLoading ? "Đang thử…" : "Thử lại"}
+                  </button>
+                </div>
+              )}
+
+              <div className="stats-grid report-stats">
+                <StatCard label="Tổng ticket" value={String(ticketSummary.total)} change={`${ticketSummary.urgent} ưu tiên cao`} icon="▤" tone="violet" note="trong hệ thống" />
+                <StatCard label="Đang mở" value={String(ticketSummary.open)} change="Cần tiếp nhận" icon="◷" tone="orange" note="chưa xử lý" />
+                <StatCard label="Đang xử lý" value={String(ticketSummary.inProgress)} change="Đội IT phụ trách" icon="↗" tone="blue" note="đang thực hiện" />
+                <StatCard label="Đã giải quyết" value={String(ticketSummary.resolved)} change={ticketSummary.total ? `${Math.round(ticketSummary.resolved / ticketSummary.total * 100)}% tổng ticket` : "Chưa có dữ liệu"} icon="✓" tone="green" note="đã hoàn tất" />
+              </div>
+
+              <section className="panel report-panel">
+                <div className="panel-heading">
+                  <div><h2>Ticket gần đây</h2><p>{ticketSummary.total ? `5 ticket mới nhất trên tổng số ${ticketSummary.total}` : "Ticket mới sẽ xuất hiện tại đây."}</p></div>
+                  <button className="text-button" onClick={() => setPage("tickets")}>Xem tất cả →</button>
+                </div>
+                <div className="ticket-table-wrap">
+                  <table className="ticket-table full-table">
+                    <thead><tr><th>MÃ TICKET / VẤN ĐỀ</th><th>PHÂN LOẠI</th><th>ƯU TIÊN</th><th>TRẠNG THÁI</th><th>NGÀY TẠO</th></tr></thead>
+                    <tbody>
+                      {ticketsLoading ? <tr><td colSpan={5} className="empty-state"><span className="loading-indicator" /> Đang tải dữ liệu...</td></tr> : tickets.length ? tickets.slice(0, 5).map((ticket) => (
+                        <tr key={ticket.id} onClick={() => openTicket(ticket)} style={{ cursor: "pointer" }} title="Nhấn để xem chi tiết ticket">
+                          <td><strong>{ticket.id}</strong><span className="ticket-title">{ticket.title}</span></td>
+                          <td>{categoryLabels[ticket.category] || ticket.category}</td>
+                          <td><Priority priority={ticket.priority} /></td>
+                          <td><Status status={ticket.status} /></td>
+                          <td>{ticket.date}</td>
+                        </tr>
+                      )) : <tr><td colSpan={5} className="empty-state"><div className="empty-state-content"><span className="empty-state-icon">▥</span><strong>Chưa có dữ liệu ticket</strong><span>Tạo ticket đầu tiên để bắt đầu theo dõi hoạt động hỗ trợ.</span></div></td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="table-footer"><span>Số liệu được cập nhật từ MongoDB</span><span>Phạm vi: {authUser.role === "admin" ? "Toàn bộ hệ thống" : "Ticket của bạn"}</span></div>
               </section>
             </>
           )}
@@ -1585,7 +1684,7 @@ export default function Home() {
                 Trạng thái ticket
               </label>
 
-              <select
+              {authUser.role === "admin" ? <select
                 id="detail-ticket-status"
                 className="status-select ticket-detail-status"
                 value={selectedTicket.status}
@@ -1600,7 +1699,7 @@ export default function Home() {
                 <option value="Open">Đang mở</option>
                 <option value="In Progress">Đang xử lý</option>
                 <option value="Resolved">Đã giải quyết</option>
-              </select>
+              </select> : <Status status={selectedTicket.status} />}
             </div>
 
             <div className="ticket-detail-section">
